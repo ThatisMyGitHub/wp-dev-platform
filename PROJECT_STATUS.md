@@ -60,7 +60,8 @@ Implemented:
 - compatibility `doctor` script;
 - guarded database export/import helpers;
 - explicit compatibility contract documenting intentional approximations;
-- resource-bounded native PHP-extension compilation, defaulting to `PHP_BUILD_JOBS=1` for QNAP/Portainer builds.
+- source-build overlay retained for CI/developer verification;
+- Portainer/QNAP deployment manifest is build-free and consumes validated GHCR runtime images.
 
 Optional extensions are not preinstalled merely because DreamHost can enable them. If a consumer requires one, the development runtime image must add it explicitly and production support must be validated.
 
@@ -73,12 +74,10 @@ Optional extensions are not preinstalled merely because DreamHost can enable the
 
 ## Automated RC validation — GREEN
 
-The full strengthened GitHub Actions gate passed again on 2026-08-22 after the QNAP build hardening (DreamHost RC validation run #48, runtime head `f9a76855befe9aa0352bf20d9a0e5c28ce9e4a85`).
+The current RC publication pipeline validates the runtime from source before publishing deployment images. The full strengthened gate verifies:
 
-Verified automatically on a clean Linux/Docker runner:
-
-1. Compose model validation.
-2. Fresh image builds from the pinned WordPress, Apache and MySQL bases using the bounded PHP-extension build.
+1. Compose deployment and source-build model validation.
+2. Fresh source builds from the pinned WordPress, Apache and MySQL bases.
 3. Fresh runtime startup with health checks.
 4. WordPress 7.0.4 installation.
 5. Compatibility doctor pass for PHP, required extensions, MySQL settings/grants, WordPress DB connection and Apache -> FastCGI -> PHP execution.
@@ -87,23 +86,33 @@ Verified automatically on a clean Linux/Docker runner:
 8. Runtime restart followed by successful WordPress, permalink and uploaded-media persistence verification.
 9. Database export/import round trip using the guarded migration helpers.
 10. Final compatibility doctor pass after the round trip.
-11. Clean teardown of the disposable validation environment.
+11. On `dev` pushes, the exact validated AMD64 images are authenticated and pushed to GHCR only after the preceding checks pass.
+12. Clean teardown of the disposable validation environment.
 
 ## Carida/QNAP validation status
 
-The first Portainer deployment attempt on Carida correctly pulled `dev` and reached image construction, but failed before runtime startup inside the WordPress native PHP-extension compilation layer. The same image layer had passed on GitHub's 4-core runner; the original Dockerfile used `docker-php-ext-install -j "$(nproc)"`, allowing build concurrency to scale with the host-reported CPU count.
+Initial Portainer source-build attempts exposed that native PHP-extension compilation should not be part of the NAS deployment path. RC1 was therefore changed to a build/publish/consume model:
 
-RC1 was hardened rather than working around the NAS manually:
+- CI/developer builds use `compose.build.yaml` and compile from source;
+- the validated runtime images are published to GHCR;
+- Portainer/QNAP uses `compose.yaml` only and pulls prebuilt images;
+- QNAP is not required to compile PHP extensions during deployment.
 
-- native extension compilation now defaults to one job;
-- `PHP_BUILD_JOBS` is an explicit positive-integer build argument;
-- faster build environments may opt into higher concurrency only after validation;
-- Debian package installation is explicitly noninteractive;
-- the full generic validation gate passes with the new bounded configuration.
+Registry/architecture gate is now **PASS** on Carida. Direct anonymous pulls from the QNAP Docker daemon succeeded for all three public RC images and each image was confirmed as `linux/amd64`:
 
-The next Carida action is to pull/redeploy the existing `wpdev-rc1` Git-managed stack from current `dev`; the stack and its development-only credentials do not need to be recreated.
+- `ghcr.io/thatismygithub/wp-dev-platform-wordpress:0.1.0-rc1`
+  - registry digest: `sha256:28714327339f7be9d4ba07271c93081b724d3a04fd6006bee748434a0522b66b`
+  - local image ID: `sha256:136d89ee91be5f0e83aa1de0637ea7f7c02dac3b804a43b8f7b6023ce22c7f47`
+- `ghcr.io/thatismygithub/wp-dev-platform-httpd:0.1.0-rc1`
+  - registry digest: `sha256:c218ae7e785a53f161fb59c4e02cf0db53849ce0f3b0747acc6a6d621032ea99`
+  - local image ID: `sha256:1a94b1d111f4e933586512868744903af9c718f5d251de7fb5b0f272abc1bc51`
+- `ghcr.io/thatismygithub/wp-dev-platform-mysql:0.1.0-rc1`
+  - registry digest: `sha256:ef294eb37bc6932dd864bd323e037d69c3e9f8710710d7b280e9c2aea8ad4a59`
+  - local image ID: `sha256:282feba2ae53ba49cd841c5da868a3ee4721e4ba6ff4d32ae33e3d8c2f5737b6`
 
-After a successful build/start, continue with MySQL initialization, QNAP-safe volume initialization, Apache/FastCGI, Cloudflare publication, browser installation, doctor, permalinks/uploads, persistence and migration checks described in `profiles/dreamhost-shared/VALIDATION.md`.
+The next Carida action is to **Pull and redeploy** the existing Git-managed `wpdev-rc1` stack from current `dev` without deleting volumes or changing development credentials.
+
+After a successful runtime start, continue with MySQL initialization, QNAP-safe WordPress volume initialization, Apache/FastCGI, Cloudflare publication, browser installation, doctor, permalinks/uploads, persistence and migration checks described in `profiles/dreamhost-shared/VALIDATION.md`.
 
 ## Migration follow-up — not an RC1 platform blocker
 
