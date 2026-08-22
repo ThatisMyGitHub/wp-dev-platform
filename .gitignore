@@ -14,6 +14,9 @@
 profiles/*/reference/private/
 profiles/*/reference/raw/
 
+# Local/project-specific provider overrides
+profiles/*/php/project-overrides.ini
+
 # WordPress runtime / uploads / generated content
 wp-content/uploads/
 wp-content/cache/
