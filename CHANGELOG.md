@@ -4,22 +4,38 @@ All notable platform changes are recorded here.
 
 ## [Unreleased]
 
-### Validation
+No unreleased platform changes.
 
-- Enhanced generic Linux/Docker RC gate is green on 2026-08-22.
-- The original strengthened gate passed as DreamHost RC validation run #40.
-- First Carida/QNAP Portainer deployment reached the WordPress image build but failed inside the native PHP-extension compilation layer before any runtime services were started.
-- The WordPress image build is now resource-bounded with `PHP_BUILD_JOBS=1` by default; faster build hosts may explicitly raise the value after validation.
-- Noninteractive Debian package installation is explicit for container builds.
-- The full enhanced gate passed again after this QNAP hardening as DreamHost RC validation run #48.
-- Fresh install, compatibility doctor, real Apache permalink delivery, uploaded-media delivery, restart persistence, database export/import round trip and final doctor all pass with the bounded build configuration.
-- Media validation uses the persisted WordPress attachment path (`_wp_attached_file`) and direct Apache delivery rather than theme/API-dependent attachment URL rendering.
+## [0.1.0] - 2026-08-22
 
-### Pending
+### Released
 
-- Retry Carida/QNAP/Portainer deployment with the bounded PHP-extension build.
-- Cloudflare Tunnel publication and HTTPS-route validation on the actual Carida environment.
-- QNAP volume persistence/redeploy validation and Carida-side migration dry run.
+- Promoted the accepted `dreamhost-shared` platform from `v0.1.0-rc1` after successful generic CI and real Carida/QNAP/Portainer acceptance.
+- Final deployment model is build/publish/consume: source builds remain in CI/developer workflows while QNAP/Portainer consumes prebuilt validated AMD64 GHCR images.
+- Confirmed the complete public path on Carida: Cloudflare HTTPS -> Tunnel -> Apache -> FastCGI -> WordPress/PHP-FPM -> MySQL.
+
+### Fixed during RC acceptance
+
+- Isolated Apache FastCGI routing from shared-network DNS collisions by using the backend-only `wpdev-php-backend` alias.
+- Added a project-scoped egress network for WordPress/PHP and WP-CLI so normal core/plugin/theme HTTPS traffic works without exposing the private backend.
+- Added safe WordPress `.htaccess` self-healing for incomplete standard WordPress marker blocks while preserving surrounding custom directives and leaving non-standard files untouched.
+- Added regression coverage for the shared-network FastCGI collision, outbound HTTPS and malformed WordPress `.htaccess` conditions discovered on the real QNAP host.
+
+### Acceptance evidence
+
+- Fresh WordPress 7.0.4 installation and administrative access through the published HTTPS hostname — PASS.
+- Full compatibility doctor for PHP/runtime settings/extensions, MySQL version/settings/grants, WordPress DB charset/collation, outbound HTTPS and Apache -> FastCGI -> PHP — PASS.
+- Friendly permalink and uploaded-media delivery through Cloudflare — PASS.
+- Ordinary container restart persistence — PASS.
+- Portainer pull/redeploy persistence using named volumes — PASS.
+- Real-QNAP `.htaccess` self-healing during redeploy — PASS.
+- Portable database export (`--single-transaction`, no tablespaces, GTID state or database creation statement) — PASS.
+- Post database round-trip WordPress state, permalink, media and final doctor — PASS.
+
+### Release boundary
+
+- Data Inspire production content/database import is intentionally outside this platform release and remains a project migration task.
+- Legacy Data Inspire table engines/collations and plugin/theme dependencies remain migration concerns rather than reusable platform requirements.
 
 ## [0.1.0-rc1] - 2026-08-22
 
