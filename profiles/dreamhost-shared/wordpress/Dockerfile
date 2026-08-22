@@ -7,12 +7,16 @@ ARG WP_CLI_VERSION=2.12.0
 # (including bcmath, exif, gd, intl, mysqli, zip and imagick). DreamHost Shared
 # exposes a broader automatically-enabled PHP web baseline, so add the missing
 # compatibility extensions that can materially affect plugins/migrations.
+#
+# Database diagnostics deliberately use PHP mysqli (the same client path used by
+# WordPress). Do not install Debian's `default-mysql-client` here: on current
+# Debian it is a MariaDB client and can introduce authentication/plugin behavior
+# that does not match the DreamHost MySQL 8 CLI/runtime.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
-        default-mysql-client \
         less \
         libbz2-dev \
         libxml2-dev \
@@ -29,6 +33,7 @@ RUN set -eux; \
         sockets \
         xsl \
     ; \
+    rm -rf /var/lib/apt/lists/*; \
     curl -fsSL "https://github.com/wp-cli/wp-cli/releases/download/v${WP_CLI_VERSION}/wp-cli-${WP_CLI_VERSION}.phar" -o /usr/local/bin/wp; \
     chmod 0755 /usr/local/bin/wp; \
     wp --allow-root --info; \
