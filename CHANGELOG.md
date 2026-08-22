@@ -6,13 +6,18 @@ All notable platform changes are recorded here.
 
 ### Validation
 
-- Enhanced generic Linux/Docker RC gate is green on 2026-08-22 (DreamHost RC validation run #40).
-- Fresh install, compatibility doctor, real Apache permalink delivery, uploaded-media delivery, restart persistence, database export/import round trip and final doctor all passed.
-- Media validation now uses the persisted WordPress attachment path (`_wp_attached_file`) and direct Apache delivery rather than theme/API-dependent attachment URL rendering.
+- Enhanced generic Linux/Docker RC gate is green on 2026-08-22.
+- The original strengthened gate passed as DreamHost RC validation run #40.
+- First Carida/QNAP Portainer deployment reached the WordPress image build but failed inside the native PHP-extension compilation layer before any runtime services were started.
+- The WordPress image build is now resource-bounded with `PHP_BUILD_JOBS=1` by default; faster build hosts may explicitly raise the value after validation.
+- Noninteractive Debian package installation is explicit for container builds.
+- The full enhanced gate passed again after this QNAP hardening as DreamHost RC validation run #48.
+- Fresh install, compatibility doctor, real Apache permalink delivery, uploaded-media delivery, restart persistence, database export/import round trip and final doctor all pass with the bounded build configuration.
+- Media validation uses the persisted WordPress attachment path (`_wp_attached_file`) and direct Apache delivery rather than theme/API-dependent attachment URL rendering.
 
 ### Pending
 
-- Carida/QNAP/Portainer deployment validation of the first DreamHost runtime RC.
+- Retry Carida/QNAP/Portainer deployment with the bounded PHP-extension build.
 - Cloudflare Tunnel publication and HTTPS-route validation on the actual Carida environment.
 - QNAP volume persistence/redeploy validation and Carida-side migration dry run.
 
