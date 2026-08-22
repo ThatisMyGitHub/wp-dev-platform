@@ -15,6 +15,8 @@
 - Database server fingerprint and effective grants captured and normalized.
 - Active Data Inspire WordPress installation verified at WordPress 7.0.4.
 - Database/schema distribution captured and normalized.
+- Effective WordPress/PHP database connection captured: `utf8mb4` + `utf8mb4_unicode_520_ci`.
+- Reusable database policy can now target clean InnoDB + `utf8mb4` rather than reproducing the historical mixed schema.
 - No runnable production-emulation stack has been finalized yet.
 
 ## Measured production baseline captured
@@ -29,6 +31,7 @@ The current observation confirms, among other values:
 - MySQL server 8.0.41;
 - SQL mode `NO_ENGINE_SUBSTITUTION`;
 - database default `utf8mb3` / `utf8mb3_unicode_ci`;
+- WordPress runtime connection `utf8mb4` / `utf8mb4_unicode_520_ci`;
 - 47 base tables: 45 already `utf8mb4`, 2 legacy `utf8mb3`;
 - 46 InnoDB tables and 1 MyISAM table;
 - no current triggers, routines or events.
@@ -40,9 +43,8 @@ CLI values are not yet being treated as authoritative web/FastCGI values.
 Before finalizing the first runnable DreamHost profile we still require:
 
 1. identify the two legacy `utf8mb3` tables and assess whether they are active dependencies;
-2. confirm the charset/collation negotiated by WordPress over its PHP database connection;
-3. PHP version assigned to the Data Inspire website in the DreamHost panel;
-4. web/FastCGI PHP runtime confirmation where practical.
+2. PHP version assigned to the Data Inspire website in the DreamHost panel;
+3. web/FastCGI PHP runtime confirmation where practical.
 
 Optional but useful:
 
@@ -58,7 +60,8 @@ Planned after fingerprint review:
 - Docker Compose baseline;
 - WordPress/PHP runtime;
 - MySQL 8 runtime with compatibility-aware application grants;
-- explicit charset/collation policy derived from the measured schema and migration requirements;
+- InnoDB + `utf8mb4` default database policy;
+- WordPress connection collation aligned with the measured production runtime;
 - QNAP/Portainer-safe initialization;
 - Cloudflare network integration;
 - health checks and environment doctor;
