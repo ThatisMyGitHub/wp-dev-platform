@@ -5,7 +5,7 @@ ARG WP_CLI_VERSION=2.12.0
 ARG PHP_BUILD_JOBS=1
 
 LABEL org.opencontainers.image.source="https://github.com/ThatisMyGitHub/wp-dev-platform" \
-      org.opencontainers.image.version="0.1.0-rc1" \
+      org.opencontainers.image.version="0.1.0" \
       org.opencontainers.image.description="DreamHost-compatible WordPress/PHP runtime for wp-dev-platform"
 
 # The official WordPress image already provides the core WordPress extension set

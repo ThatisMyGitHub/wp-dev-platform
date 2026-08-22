@@ -18,9 +18,9 @@ permissions:
   packages: write
 
 env:
-  WORDPRESS_RUNTIME_IMAGE: ghcr.io/thatismygithub/wp-dev-platform-wordpress:0.1.0-rc1
-  HTTPD_RUNTIME_IMAGE: ghcr.io/thatismygithub/wp-dev-platform-httpd:0.1.0-rc1
-  MYSQL_RUNTIME_IMAGE: ghcr.io/thatismygithub/wp-dev-platform-mysql:0.1.0-rc1
+  WORDPRESS_RUNTIME_IMAGE: ghcr.io/thatismygithub/wp-dev-platform-wordpress:0.1.0
+  HTTPD_RUNTIME_IMAGE: ghcr.io/thatismygithub/wp-dev-platform-httpd:0.1.0
+  MYSQL_RUNTIME_IMAGE: ghcr.io/thatismygithub/wp-dev-platform-mysql:0.1.0
 
 jobs:
   runtime-validation:
