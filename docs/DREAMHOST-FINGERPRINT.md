@@ -4,6 +4,14 @@ This guide captures the production-relevant configuration of the existing Data I
 
 The process deliberately avoids printing or storing passwords.
 
+## Canonical administration interface
+
+For this project, **MobaXterm Professional** is the canonical operator interface for DreamHost SSH/SFTP administration.
+
+- SSH is used for shell commands and diagnostics.
+- MobaXterm's integrated SFTP browser may be used to inspect/download generated fingerprint files.
+- Commands remain standard POSIX shell commands and do not depend on MobaXterm-specific behavior.
+
 ## Why two captures are required
 
 DreamHost separates the web server from the shared MySQL server, and the PHP version used by the shell can differ from the PHP version assigned to the website.
@@ -39,23 +47,25 @@ In the DreamHost panel, identify the **Shell user** that owns the Data Inspire s
 
 The user must be configured as a Shell user rather than FTP-only.
 
-### A2. Connect over SSH
+### A2. Connect with MobaXterm
 
-From macOS/Linux/WSL/PowerShell with OpenSSH:
+Create an SSH session using the host, username and port shown in DreamHost's **Login Info** panel.
+
+Verify the account after login:
 
 ```bash
-ssh YOUR_SHELL_USER@YOUR_DREAMHOST_SERVER
+whoami
+pwd
+hostname
 ```
 
-Use the real shell username and server hostname shown by DreamHost.
-
-If your SSH client asks whether to trust the server host key on the first connection, verify the hostname before accepting it.
+Do not continue if the account or home directory is not the expected site owner.
 
 ---
 
 ## Part B — Command 1: shell/runtime fingerprint
 
-Once logged in over SSH, run the following block exactly as a normal DreamHost user. It writes the result to a text file in your home directory and also shows it on screen.
+Once logged in over SSH, run the following block as the normal DreamHost user. It writes the result to a text file in the home directory and also shows it on screen.
 
 ```bash
 OUT="$HOME/datainspire-dreamhost-shell-fingerprint-$(date +%Y%m%d-%H%M%S).txt"
@@ -127,25 +137,14 @@ OUT="$HOME/datainspire-dreamhost-shell-fingerprint-$(date +%Y%m%d-%H%M%S).txt"
   apache2 -v 2>/dev/null || httpd -v 2>/dev/null || echo "Apache binary/version not exposed to this shell user"
 } | tee "$OUT"
 
-echo
-echo "Fingerprint saved to: $OUT"
+printf '\nFingerprint saved to: %s\n' "$OUT"
 ```
 
-### What this command does not expose
-
-It does **not** request or print passwords. It also intentionally avoids dumping the process environment, because environment variables can contain secrets.
+The command does **not** request or print passwords. It intentionally avoids dumping the process environment because environment variables can contain secrets.
 
 ### Important PHP interpretation
 
-The result of:
-
-```bash
-php -v
-```
-
-is the default **command-line PHP** version. DreamHost allows multiple PHP versions and the hosted website can be configured to use a different one.
-
-Do not use the CLI result alone as the Data Inspire web-runtime version.
+`php -v` reports the default **command-line PHP** version. Do not use that result alone as the Data Inspire web-runtime version.
 
 ---
 
@@ -163,65 +162,50 @@ Website PHP: 8.4
 
 ### Optional technical confirmation
 
-If we later need to compare specific web-runtime PHP settings, use a temporary, deliberately limited diagnostic file rather than publishing a full `phpinfo()` page for an extended period.
-
-Do not leave a `phpinfo.php` diagnostic endpoint on the public site.
-
-For the first fingerprint, the panel-selected website PHP version plus the shell/module capture is sufficient.
+If we later need to compare specific web-runtime PHP settings, use a temporary deliberately limited diagnostic endpoint rather than leaving a full `phpinfo()` page publicly reachable.
 
 ---
 
-## Part D — identify database connection values safely
+## Part D — locate the existing WordPress installation
 
-DreamHost Shared MySQL is on a separate database server, so do not assume `localhost`.
-
-Obtain these three non-password values from the DreamHost panel:
-
-```text
-DB_HOST
-DB_NAME
-DB_USER
-```
-
-If WP-CLI is working from the existing WordPress document root, you may also verify them individually:
+From the DreamHost user's home directory, locate WordPress configuration files without displaying their contents:
 
 ```bash
-wp config get DB_HOST
-wp config get DB_NAME
-wp config get DB_USER
+find "$HOME" -maxdepth 3 -type f -name wp-config.php -print 2>/dev/null
 ```
 
-**Do not run or share:**
+Identify the path belonging to `datainspire.com`, then change into that WordPress document root.
+
+Example only:
 
 ```bash
-wp config get DB_PASSWORD
+cd "$HOME/datainspire.com"
 ```
 
-The password will be entered only at the MySQL password prompt in the next step.
+Verify WP-CLI sees the installation:
+
+```bash
+wp core version
+```
+
+Do **not** display `wp-config.php` and do not run `wp config get DB_PASSWORD`.
 
 ---
 
 ## Part E — Command 2: database fingerprint
 
-Replace only the three placeholders below:
+### Preferred method: WP-CLI
 
-- `YOUR_DB_HOST`
-- `YOUR_DB_USER`
-- `YOUR_DB_NAME`
+Because DreamHost provides WP-CLI and the existing WordPress installation already contains the database connection configuration, the preferred method is to query MySQL through WP-CLI. This avoids displaying, copying or manually entering the database password.
 
-Then run:
+Run this from the Data Inspire WordPress document root:
 
 ```bash
 DB_OUT="$HOME/datainspire-dreamhost-db-fingerprint-$(date +%Y%m%d-%H%M%S).txt"
 
-mysql \
-  -h YOUR_DB_HOST \
-  -u YOUR_DB_USER \
-  -p \
-  YOUR_DB_NAME \
-  --batch --raw \
-  -e "
+wp db query "
 SELECT 'mysql_version' AS item, VERSION() AS value;
+SELECT 'version_comment' AS item, @@version_comment AS value;
 SELECT 'character_set_server' AS item, @@character_set_server AS value;
 SELECT 'collation_server' AS item, @@collation_server AS value;
 SELECT 'sql_mode' AS item, @@sql_mode AS value;
@@ -229,34 +213,30 @@ SELECT 'time_zone' AS item, @@time_zone AS value;
 SELECT 'max_allowed_packet' AS item, @@max_allowed_packet AS value;
 SELECT 'lower_case_table_names' AS item, @@lower_case_table_names AS value;
 SELECT 'current_database' AS item, DATABASE() AS value;
+SELECT 'current_user' AS item, CURRENT_USER() AS value;
 SHOW GRANTS FOR CURRENT_USER();
 " | tee "$DB_OUT"
 
-echo
-echo "Database fingerprint saved to: $DB_OUT"
+printf '\nDatabase fingerprint saved to: %s\n' "$DB_OUT"
 ```
 
-MySQL will display:
+The raw output may contain the database name and account identity. Keep the file outside Git; those identifiers will be removed from the normalized public profile.
 
-```text
-Enter password:
-```
+### Fallback method: direct MySQL prompt
 
-Type the database password and press Enter. The password is not displayed and is not placed directly in the shell command/history.
-
-### Why we use `-p` without the password
-
-Do **not** write this:
+If `wp db query` is unavailable or fails, obtain `DB_HOST`, `DB_NAME` and `DB_USER` from the DreamHost panel or individually through WP-CLI:
 
 ```bash
-mysql -pYOUR_PASSWORD ...
+wp config get DB_HOST
+wp config get DB_NAME
+wp config get DB_USER
 ```
 
-Putting a password directly on the command line can expose it through shell history or process inspection.
+Then run the equivalent query with the `mysql` client using `-p` **without putting the password on the command line**.
 
 ---
 
-## Part F — check WordPress itself
+## Part F — WordPress inventory
 
 From the Data Inspire WordPress document root, run:
 
@@ -266,9 +246,7 @@ wp plugin list --fields=name,status,version,update --format=table
 wp theme list --fields=name,status,version,update --format=table
 ```
 
-This inventory is useful for migration planning. It does not need to be included in the raw server fingerprint if you prefer to collect it separately.
-
-Before sharing the output, review plugin/theme names for anything you consider private.
+This inventory is useful for migration planning. Review plugin/theme names before sharing if any are considered private.
 
 ---
 
@@ -278,22 +256,16 @@ Provide the following through a private conversation/upload rather than committi
 
 1. `datainspire-dreamhost-shell-fingerprint-*.txt`
 2. `datainspire-dreamhost-db-fingerprint-*.txt`
-3. The PHP version shown for the Data Inspire website in the DreamHost panel.
-4. Optionally, the WordPress/plugin/theme inventory.
+3. the PHP version shown for the Data Inspire website in the DreamHost panel;
+4. optionally, the WordPress/plugin/theme inventory.
 
-Before sending, you may redact:
+Before sending, you may redact shell username, server hostname, database hostname, database username and database name.
 
-- shell username;
-- server hostname;
-- database hostname;
-- database username;
-- database name.
-
-Do not redact version numbers, PHP settings, SQL mode, character set/collation, or grant privilege names. Those are the values we need for compatibility analysis.
+Do not redact version numbers, PHP settings, SQL mode, character set/collation or grant privilege names.
 
 ## Part H — expected output of this phase
 
-After reviewing the capture, the platform project will create a sanitized provider profile such as:
+After reviewing the capture, the platform project maintains sanitized provider information under:
 
 ```text
 profiles/
@@ -303,15 +275,6 @@ profiles/
     ├── php/
     ├── mysql/
     └── reference/
-        └── sanitized-profile.json
 ```
 
-The raw fingerprint files remain outside Git.
-
-## DreamHost references
-
-- PHP versions: https://help.dreamhost.com/hc/en-us/articles/215082337-What-versions-of-PHP-are-available-at-DreamHost
-- Command-line PHP: https://help.dreamhost.com/hc/en-us/articles/214202238-Command-line-PHP-overview
-- MySQL overview: https://help.dreamhost.com/hc/en-us/articles/215099117-MySQL-overview
-- Connect to MySQL via SSH: https://help.dreamhost.com/hc/en-us/articles/214882998-Connect-to-a-database-via-SSH
-- Shared MySQL limitations: https://help.dreamhost.com/hc/en-us/articles/115000263911-MySQL-limitations-due-to-shared-hosting
+Raw fingerprint files remain outside Git.
