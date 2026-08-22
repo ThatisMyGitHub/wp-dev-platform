@@ -41,6 +41,7 @@ services:
       args:
         WORDPRESS_BASE_IMAGE: "${WORDPRESS_BASE_IMAGE:-wordpress:7.0.4-php8.3-fpm@sha256:48fd4f0fee04801b95245c39d6ad915491ef00c943c8c359b1ea552e1647a18e}"
         WP_CLI_VERSION: "${WP_CLI_VERSION:-2.12.0}"
+        PHP_BUILD_JOBS: "${PHP_BUILD_JOBS:-1}"
     image: "${WORDPRESS_RUNTIME_IMAGE:-wpdev-wordpress:0.1.0-rc1}"
     restart: "no"
     init: true
@@ -81,6 +82,7 @@ services:
       args:
         WORDPRESS_BASE_IMAGE: "${WORDPRESS_BASE_IMAGE:-wordpress:7.0.4-php8.3-fpm@sha256:48fd4f0fee04801b95245c39d6ad915491ef00c943c8c359b1ea552e1647a18e}"
         WP_CLI_VERSION: "${WP_CLI_VERSION:-2.12.0}"
+        PHP_BUILD_JOBS: "${PHP_BUILD_JOBS:-1}"
     image: "${WORDPRESS_RUNTIME_IMAGE:-wpdev-wordpress:0.1.0-rc1}"
     restart: unless-stopped
     init: true
