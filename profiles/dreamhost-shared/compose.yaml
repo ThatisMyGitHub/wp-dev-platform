@@ -1,6 +1,11 @@
 services:
   db:
-    image: "${MYSQL_IMAGE}"
+    build:
+      context: .
+      dockerfile: mysql/Dockerfile
+      args:
+        MYSQL_BASE_IMAGE: "${MYSQL_BASE_IMAGE}"
+    image: "${MYSQL_RUNTIME_IMAGE:-wpdev-mysql:0.1.0-rc1}"
     restart: unless-stopped
     init: true
     environment:
@@ -20,7 +25,6 @@ services:
       - "--skip-name-resolve"
     volumes:
       - "mysql_data:/var/lib/mysql"
-      - "./mysql/10-restrict-app-user.sh:/docker-entrypoint-initdb.d/10-restrict-app-user.sh:ro"
     networks:
       - backend
     healthcheck:
@@ -105,7 +109,6 @@ services:
         define('FORCE_SSL_ADMIN', true);
     volumes:
       - "wordpress_data:/var/www/html"
-      - "./php/zz-dreamhost.ini:/usr/local/etc/php/conf.d/zz-dreamhost.ini:ro"
     networks:
       - backend
     healthcheck:
@@ -116,7 +119,12 @@ services:
       start_period: 45s
 
   web:
-    image: "${HTTPD_IMAGE:-httpd:2.4.68}"
+    build:
+      context: .
+      dockerfile: apache/Dockerfile
+      args:
+        HTTPD_BASE_IMAGE: "${HTTPD_BASE_IMAGE}"
+    image: "${HTTPD_RUNTIME_IMAGE:-wpdev-httpd:0.1.0-rc1}"
     restart: unless-stopped
     init: true
     depends_on:
@@ -124,7 +132,6 @@ services:
         condition: service_healthy
     volumes:
       - "wordpress_data:/var/www/html:ro"
-      - "./apache/httpd.conf:/usr/local/apache2/conf/httpd.conf:ro"
     networks:
       carida_cloudflare:
         aliases:
@@ -157,7 +164,6 @@ services:
       WORDPRESS_DB_PASSWORD: "${MYSQL_PASSWORD}"
     volumes:
       - "wordpress_data:/var/www/html"
-      - "./php/zz-dreamhost.ini:/usr/local/etc/php/conf.d/zz-dreamhost.ini:ro"
     networks:
       - backend
 
