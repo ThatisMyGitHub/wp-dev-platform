@@ -70,24 +70,60 @@ jobs:
       - name: Run compatibility doctor
         run: bash scripts/doctor.sh
 
-      - name: Exercise permalinks and uploads
+      - name: Prove Apache permalinks and uploaded media
         shell: bash
         run: |
+          set -euo pipefail
+
           docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
-            rewrite structure '/%postname%/' --hard
+            rewrite structure '/%postname%/'
+
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            post create \
+            --post_type=post \
+            --post_status=publish \
+            --post_title='CI Permalink Fixture' \
+            --post_name='ci-permalink-fixture' \
+            --post_content='WPDEV_PERMALINK_HTTP_OK'
+
+          docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            curl -fsS http://web/ci-permalink-fixture/ \
+            | grep -q 'WPDEV_PERMALINK_HTTP_OK'
 
           printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=' | base64 -d > /tmp/wpdev-ci.png
           docker compose --env-file .env -f compose.yaml cp /tmp/wpdev-ci.png wordpress:/var/www/html/wpdev-ci.png
-          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
-            media import /var/www/html/wpdev-ci.png --title='CI media fixture'
+
+          ATTACHMENT_ID="$(docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            media import /var/www/html/wpdev-ci.png --title='CI media fixture' --porcelain | tr -d '\r')"
+          test -n "$ATTACHMENT_ID"
+
+          MEDIA_URL="$(docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            eval 'echo wp_get_attachment_url((int) $args[0]);' "$ATTACHMENT_ID" | tr -d '\r')"
+          test -n "$MEDIA_URL"
+
+          docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            curl -fsS "$MEDIA_URL" -o /dev/null
+
           docker compose --env-file .env -f compose.yaml exec -T wordpress rm -f /var/www/html/wpdev-ci.png
 
       - name: Verify restart persistence
+        shell: bash
         run: |
+          set -euo pipefail
           docker compose --env-file .env -f compose.yaml restart db wordpress web
           docker compose --env-file .env -f compose.yaml up -d --wait --wait-timeout 180
           docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli core is-installed
           docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli option get siteurl
+
+          docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            curl -fsS http://web/ci-permalink-fixture/ \
+            | grep -q 'WPDEV_PERMALINK_HTTP_OK'
+
+          MEDIA_URL="$(docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            eval '$posts=get_posts(["post_type"=>"attachment","post_status"=>"inherit","s"=>"CI media fixture","numberposts"=>1]); if (!$posts) { exit(1); } echo wp_get_attachment_url($posts[0]->ID);' | tr -d '\r')"
+          test -n "$MEDIA_URL"
+          docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            curl -fsS "$MEDIA_URL" -o /dev/null
 
       - name: Database export/import dry run
         shell: bash
