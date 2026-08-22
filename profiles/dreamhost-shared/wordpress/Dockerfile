@@ -2,6 +2,7 @@ ARG WORDPRESS_BASE_IMAGE=wordpress:7.0.4-php8.3-fpm
 FROM ${WORDPRESS_BASE_IMAGE}
 
 ARG WP_CLI_VERSION=2.12.0
+ARG PHP_BUILD_JOBS=1
 
 # The official WordPress image already provides the core WordPress extension set
 # (including bcmath, exif, gd, intl, mysqli, zip and imagick). DreamHost Shared
@@ -12,7 +13,16 @@ ARG WP_CLI_VERSION=2.12.0
 # WordPress). Do not install Debian's `default-mysql-client` here: on current
 # Debian it is a MariaDB client and can introduce authentication/plugin behavior
 # that does not match the DreamHost MySQL 8 CLI/runtime.
+#
+# Build concurrency defaults to one job because this image is also built directly
+# on QNAP/Portainer hosts. Native PHP extension compilation can otherwise consume
+# memory proportional to the NAS-reported CPU count. Faster build hosts may
+# explicitly raise PHP_BUILD_JOBS after validating their resource envelope.
 RUN set -eux; \
+    case "${PHP_BUILD_JOBS}" in \
+        ''|*[!0-9]*|0) echo "PHP_BUILD_JOBS must be a positive integer" >&2; exit 64 ;; \
+    esac; \
+    export DEBIAN_FRONTEND=noninteractive; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         ca-certificates \
@@ -22,7 +32,7 @@ RUN set -eux; \
         libxml2-dev \
         libxslt1-dev \
     ; \
-    docker-php-ext-install -j "$(nproc)" \
+    docker-php-ext-install -j "${PHP_BUILD_JOBS}" \
         bz2 \
         calendar \
         ftp \
