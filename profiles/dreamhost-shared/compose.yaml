@@ -46,19 +46,36 @@ services:
           echo "WordPress volume already initialized."
         fi
 
-        if [ ! -e /var/www/html/.htaccess ]; then
+        HTACCESS=/var/www/html/.htaccess
+        CANONICAL_HTACCESS=/usr/local/share/wpdev/default.htaccess
+
+        if [ ! -e "$$HTACCESS" ]; then
           echo "Seeding standard root WordPress .htaccess for Apache development runtime."
-          cp /usr/local/share/wpdev/default.htaccess /var/www/html/.htaccess
-          chown www-data:www-data /var/www/html/.htaccess
-          chmod 0644 /var/www/html/.htaccess
+          cp "$$CANONICAL_HTACCESS" "$$HTACCESS"
+          chown www-data:www-data "$$HTACCESS"
+          chmod 0644 "$$HTACCESS"
+        elif grep -q '^# BEGIN WordPress$$' "$$HTACCESS" && grep -q '^# END WordPress$$' "$$HTACCESS"; then
+          if awk '
+            /^# BEGIN WordPress$/ { in_wp=1 }
+            in_wp && /RewriteRule \. \/index\.php \[L\]/ { found=1 }
+            /^# END WordPress$/ { in_wp=0 }
+            END { exit(found ? 0 : 1) }
+          ' "$$HTACCESS"; then
+            echo "Existing WordPress .htaccess rewrite block is valid; preserved."
+          else
+            echo "Repairing incomplete WordPress .htaccess rewrite block while preserving surrounding directives."
+            php /usr/local/share/wpdev/repair-wordpress-htaccess.php "$$HTACCESS" "$$CANONICAL_HTACCESS"
+            chown www-data:www-data "$$HTACCESS"
+            chmod 0644 "$$HTACCESS"
+          fi
         else
-          echo "Existing .htaccess preserved."
+          echo "Existing .htaccess has no standard WordPress marker block; preserved unchanged."
         fi
 
         test -f /var/www/html/index.php
         test -f /var/www/html/wp-includes/version.php
         test -f /var/www/html/wp-settings.php
-        test -f /var/www/html/.htaccess
+        test -f "$$HTACCESS"
     volumes:
       - "wordpress_data:/var/www/html"
     network_mode: "none"
