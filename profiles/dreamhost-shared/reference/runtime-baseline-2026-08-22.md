@@ -62,6 +62,20 @@ The active Data Inspire WordPress installation has been positively identified an
 
 The project-specific document root and URL are intentionally not required by the reusable provider profile.
 
+## Database runtime
+
+The active WordPress database has been queried successfully through WP-CLI without exposing credentials. A separate sanitized reference records the details:
+
+`database-baseline-2026-08-22.md`
+
+Confirmed at this stage:
+
+- MySQL server 8.0.41 (Ubuntu);
+- server default `utf8mb3` / `utf8mb3_unicode_ci`;
+- SQL mode `NO_ENGINE_SUBSTITUTION`;
+- 32 MiB `max_allowed_packet`;
+- database-scoped application grants captured and sanitized.
+
 ## Validation state
 
 Completed:
@@ -75,13 +89,15 @@ Completed:
 - [x] MySQL client version captured
 - [x] Active WordPress installation verified
 - [x] WordPress core version captured
+- [x] Database server fingerprint captured
+- [x] Database effective grants captured
 
 Pending:
 
 - [ ] Website-assigned PHP version from DreamHost panel
 - [ ] Web/FastCGI PHP runtime confirmation
-- [ ] Database server fingerprint
-- [ ] Database effective grants/restrictions
+- [ ] Database/table-level charset, collation and engine inventory
+- [ ] Existing trigger/routine/event metadata inventory
 - [ ] Optional plugin/theme inventory
 
 ## Design implication
