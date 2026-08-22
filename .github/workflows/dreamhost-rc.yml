@@ -1,0 +1,113 @@
+name: DreamHost RC validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/dreamhost-rc.yml'
+      - 'profiles/dreamhost-shared/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/dreamhost-rc.yml'
+      - 'profiles/dreamhost-shared/**'
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: profiles/dreamhost-shared
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare CI environment
+        shell: bash
+        run: |
+          cp .env.example .env
+          sed -i 's/^WPDEV_PROJECT_SLUG=.*/WPDEV_PROJECT_SLUG=wpdevci/' .env
+          sed -i 's#^WP_URL=.*#WP_URL=http://web#' .env
+          sed -i 's/^WP_DEBUG=.*/WP_DEBUG=false/' .env
+          sed -i 's/^MYSQL_DATABASE=.*/MYSQL_DATABASE=wordpress_ci/' .env
+          sed -i 's/^MYSQL_USER=.*/MYSQL_USER=wordpress_ci/' .env
+          sed -i 's/^MYSQL_PASSWORD=.*/MYSQL_PASSWORD=ci-app-password-7c8e9f/' .env
+          sed -i 's/^MYSQL_ROOT_PASSWORD=.*/MYSQL_ROOT_PASSWORD=ci-root-password-1a2b3c/' .env
+          docker network inspect carida_cloudflare >/dev/null 2>&1 || docker network create carida_cloudflare
+          docker compose version
+          docker version
+
+      - name: Validate Compose model
+        run: docker compose --env-file .env -f compose.yaml config -q
+
+      - name: Build RC images
+        run: docker compose --env-file .env -f compose.yaml build --pull
+
+      - name: Start runtime
+        run: |
+          docker compose --env-file .env -f compose.yaml up -d
+          docker compose --env-file .env -f compose.yaml up -d --wait --wait-timeout 180
+          docker compose --env-file .env -f compose.yaml ps
+
+      - name: Install WordPress
+        run: |
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            core install \
+            --url=http://web \
+            --title='wp-dev-platform CI' \
+            --admin_user=ciadmin \
+            --admin_password='ci-only-password-42!' \
+            --admin_email=ci@example.invalid \
+            --skip-email
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli core version
+
+      - name: Run compatibility doctor
+        run: bash scripts/doctor.sh
+
+      - name: Exercise permalinks and uploads
+        shell: bash
+        run: |
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            rewrite structure '/%postname%/' --hard
+
+          printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=' | base64 -d > /tmp/wpdev-ci.png
+          docker compose --env-file .env -f compose.yaml cp /tmp/wpdev-ci.png wordpress:/var/www/html/wpdev-ci.png
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            media import /var/www/html/wpdev-ci.png --title='CI media fixture'
+          docker compose --env-file .env -f compose.yaml exec -T wordpress rm -f /var/www/html/wpdev-ci.png
+
+      - name: Verify restart persistence
+        run: |
+          docker compose --env-file .env -f compose.yaml restart db wordpress web
+          docker compose --env-file .env -f compose.yaml up -d --wait --wait-timeout 180
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli core is-installed
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli option get siteurl
+
+      - name: Database export/import dry run
+        shell: bash
+        run: |
+          bash scripts/db-export.sh backups/ci-roundtrip.sql
+          test -s backups/ci-roundtrip.sql
+          CONFIRM_IMPORT=1 bash scripts/db-import.sh backups/ci-roundtrip.sql
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli core is-installed
+
+      - name: Final doctor
+        run: bash scripts/doctor.sh
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          docker compose --env-file .env -f compose.yaml ps || true
+          docker compose --env-file .env -f compose.yaml logs --no-color --tail=250 || true
+
+      - name: Tear down
+        if: always()
+        run: |
+          docker compose --env-file .env -f compose.yaml down -v --remove-orphans || true
+          docker network rm carida_cloudflare >/dev/null 2>&1 || true
