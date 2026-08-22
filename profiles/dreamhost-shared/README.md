@@ -1,71 +1,91 @@
-# DreamHost Shared profile
+# DreamHost Shared profile — v0.1.0-rc1
 
-**Status:** measured discovery in progress
+First runnable provider profile for `wp-dev-platform`. It adapts the HCF development/deployment pattern to the measured Data Inspire DreamHost Shared environment.
 
-This profile adapts `wp-dev-platform` to DreamHost Shared Hosting behavior while preserving the common HCF-derived development, validation, deployment, and migration pattern.
-
-## Measured baseline
-
-The Data Inspire production environment has now been partially fingerprinted. Confirmed characteristics include:
-
-- Ubuntu 24.04.4 LTS host environment.
-- Apache 2.4.58.
-- Multiple PHP binaries available; default CLI PHP is 8.2.30.
-- Shared MySQL 8 on a separate database server.
-- Measured database server version: MySQL 8.0.41 (Ubuntu).
-- `localhost` must not be assumed for production database access.
-- Persistent background processes must not be required by the production application.
-- Docker is development infrastructure only and is not a production dependency.
-
-## Effective database privileges
-
-The active Data Inspire database user is currently granted normal WordPress DML/DDL privileges plus views, routines and triggers at database scope. In particular, the measured grants include:
-
-- `CREATE ROUTINE`
-- `ALTER ROUTINE`
-- `EXECUTE`
-- `TRIGGER`
-
-`EVENT` and global administrative/user-management privileges were not observed.
-
-This corrects the preliminary assumption that routines and triggers are universally unavailable on DreamHost Shared. The measured account grants are authoritative for the Data Inspire compatibility profile.
-
-The generic platform should nevertheless avoid making routines/triggers mandatory unless portability across all supported hosting profiles is explicitly accepted and tested.
-
-## Authoritative reference data
-
-Raw captures remain outside Git; only sanitized compatibility data belongs under `reference/`.
-
-See:
-
-- `../../docs/DREAMHOST-FINGERPRINT.md`
-- `reference/runtime-baseline-2026-08-22.md`
-- `reference/database-baseline-2026-08-22.md`
-- `../../ROADMAP.md`
-
-## Remaining discovery
-
-Before the first runnable profile is finalized, we still need:
-
-- website-assigned PHP version from the DreamHost panel;
-- web/FastCGI PHP runtime confirmation where practical;
-- current database/table character sets and collations;
-- table storage engines and existing database objects as metadata;
-- optional WordPress plugin/theme inventory.
-
-## Planned structure
+## Runtime topology
 
 ```text
-profiles/dreamhost-shared/
-├── README.md
-├── compatibility.md
-├── compose.override.yaml
-├── php/
-├── mysql/
-└── reference/
-    ├── runtime-baseline-2026-08-22.md
-    ├── database-baseline-2026-08-22.md
-    └── sanitized-profile.json
+Cloudflare Tunnel
+       |
+       v
+Apache 2.4 (`web`)
+       |
+       | FastCGI
+       v
+WordPress / PHP 8.3 (`wordpress`)
+       |
+       v
+MySQL 8.0.41 (`db`)
 ```
 
-Do not add production credentials or raw fingerprint files here.
+`web` joins the external `carida_cloudflare` network. `wordpress` and `db` communicate on a project-scoped internal backend network. No ports are published on the QNAP host by default.
+
+The split Apache + PHP-FPM layout intentionally reproduces DreamHost's Apache -> FastCGI execution model more closely than the single-container `wordpress:apache` image would.
+
+## Quick start
+
+Prerequisites:
+
+- Docker Compose / Portainer with Compose-spec support.
+- Existing external network `carida_cloudflare` (or set `CLOUDFLARE_NETWORK`).
+- A Cloudflare Tunnel route targeting the configured `CLOUDFLARE_ALIAS` on port 80.
+
+Prepare the profile:
+
+```bash
+cp .env.example .env
+# Edit .env and replace CHANGE_ME values and WP_URL.
+docker compose --env-file .env -f compose.yaml config -q
+docker compose --env-file .env -f compose.yaml up -d --build
+```
+
+The WordPress files are initialized into a persistent named volume using the QNAP-safe tar-copy pattern proven in HCF.
+
+## First WordPress installation
+
+After the stack is healthy, open `WP_URL` and complete the normal WordPress installation, or use the WP-CLI helper:
+
+```bash
+./scripts/wp.sh core version
+```
+
+The helper runs WP-CLI 2.12.0 inside the PHP 8.3 application image rather than inheriting an unrelated host CLI PHP version.
+
+## Compatibility doctor
+
+After WordPress has been installed:
+
+```bash
+./scripts/doctor.sh
+```
+
+The doctor checks Compose validity, PHP family/limits, MySQL version/settings, application grants, and WordPress's effective database charset/collation.
+
+## Development-only Adminer
+
+Adminer is disabled by default. Start it only when needed:
+
+```bash
+docker compose --env-file .env -f compose.yaml --profile tools up -d adminer
+```
+
+It joins `carida_cloudflare` under `ADMINER_ALIAS`, but it is not publicly reachable unless a Cloudflare Tunnel route is explicitly created. Remove that route and stop the service after use.
+
+## Database export/import
+
+```bash
+./scripts/db-export.sh
+CONFIRM_IMPORT=1 ./scripts/db-import.sh backups/database-YYYYMMDD-HHMMSS.sql
+```
+
+Exports are written under `backups/` by default and are ignored by Git. Import is deliberately gated by `CONFIRM_IMPORT=1`.
+
+## Important initialization behavior
+
+The database privilege restriction script runs only when the MySQL volume is initialized for the first time. If the privilege model changes during an RC and you are working with disposable development data, recreate the MySQL volume before re-testing. Never do that to a volume containing data you need to preserve.
+
+## Production boundary
+
+This Compose stack is not deployed to DreamHost. Production migration remains a controlled transfer of WordPress files/database/configuration to the shared-hosting environment.
+
+See `compatibility.md` and `reference/` for the measured compatibility rationale. Raw production fingerprints are never committed.

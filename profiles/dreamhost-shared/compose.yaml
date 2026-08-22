@@ -1,0 +1,191 @@
+services:
+  db:
+    image: "${MYSQL_IMAGE}"
+    restart: unless-stopped
+    init: true
+    environment:
+      TZ: "${TZ:-UTC}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE}"
+      MYSQL_USER: "${MYSQL_USER}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_INITDB_SKIP_TZINFO: "1"
+    command:
+      - "--character-set-server=utf8mb4"
+      - "--collation-server=utf8mb4_unicode_520_ci"
+      - "--default-storage-engine=InnoDB"
+      - "--sql-mode=NO_ENGINE_SUBSTITUTION"
+      - "--max-allowed-packet=32M"
+      - "--lower-case-table-names=0"
+      - "--skip-name-resolve"
+    volumes:
+      - "mysql_data:/var/lib/mysql"
+      - "./mysql/10-restrict-app-user.sh:/docker-entrypoint-initdb.d/10-restrict-app-user.sh:ro"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  wordpress-init:
+    build:
+      context: .
+      dockerfile: wordpress/Dockerfile
+      args:
+        WORDPRESS_BASE_IMAGE: "${WORDPRESS_BASE_IMAGE}"
+        WP_CLI_VERSION: "${WP_CLI_VERSION:-2.12.0}"
+    image: "${WORDPRESS_RUNTIME_IMAGE:-wpdev-wordpress:0.1.0-rc1}"
+    restart: "no"
+    init: true
+    entrypoint: ["/bin/bash", "-ec"]
+    command:
+      - |
+        echo "wp-dev-platform - QNAP-safe WordPress initialization"
+        if [ ! -f /var/www/html/wp-includes/version.php ]; then
+          tar --create --file - --directory /usr/src/wordpress . \
+            | tar --extract --file - --directory /var/www/html \
+                --no-same-owner --no-same-permissions
+          chown -R www-data:www-data /var/www/html
+        else
+          echo "WordPress volume already initialized."
+        fi
+        test -f /var/www/html/index.php
+        test -f /var/www/html/wp-includes/version.php
+        test -f /var/www/html/wp-settings.php
+    volumes:
+      - "wordpress_data:/var/www/html"
+    network_mode: "none"
+
+  wordpress:
+    build:
+      context: .
+      dockerfile: wordpress/Dockerfile
+      args:
+        WORDPRESS_BASE_IMAGE: "${WORDPRESS_BASE_IMAGE}"
+        WP_CLI_VERSION: "${WP_CLI_VERSION:-2.12.0}"
+    image: "${WORDPRESS_RUNTIME_IMAGE:-wpdev-wordpress:0.1.0-rc1}"
+    restart: unless-stopped
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+      wordpress-init:
+        condition: service_completed_successfully
+    environment:
+      TZ: "${TZ:-UTC}"
+      WORDPRESS_DB_HOST: "db:3306"
+      WORDPRESS_DB_NAME: "${MYSQL_DATABASE}"
+      WORDPRESS_DB_USER: "${MYSQL_USER}"
+      WORDPRESS_DB_PASSWORD: "${MYSQL_PASSWORD}"
+      WORDPRESS_TABLE_PREFIX: "${WP_TABLE_PREFIX:-wp_}"
+      WORDPRESS_DEBUG: "${WP_DEBUG:-true}"
+      WORDPRESS_CONFIG_EXTRA: |
+        define('DISALLOW_FILE_EDIT', true);
+        define('WP_AUTO_UPDATE_CORE', 'minor');
+        define('WP_MEMORY_LIMIT', '128M');
+        define('WP_MAX_MEMORY_LIMIT', '128M');
+        define('WP_ENVIRONMENT_TYPE', '${WP_ENVIRONMENT:-development}');
+        define('WP_HOME', '${WP_URL}');
+        define('WP_SITEURL', '${WP_URL}');
+        define('WP_POST_REVISIONS', ${WP_POST_REVISIONS:-10});
+        define('EMPTY_TRASH_DAYS', 30);
+
+        if (
+            (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && stripos($$_SERVER['HTTP_X_FORWARDED_PROTO'], 'https') !== false)
+            ||
+            (isset($$_SERVER['HTTP_CF_VISITOR']) && stripos($$_SERVER['HTTP_CF_VISITOR'], 'https') !== false)
+        ) {
+            $$_SERVER['HTTPS'] = 'on';
+            $$_SERVER['SERVER_PORT'] = 443;
+        }
+
+        define('FORCE_SSL_ADMIN', true);
+    volumes:
+      - "wordpress_data:/var/www/html"
+      - "./php/zz-dreamhost.ini:/usr/local/etc/php/conf.d/zz-dreamhost.ini:ro"
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "php -r '$$s=@fsockopen(\"127.0.0.1\",9000,$$e,$$m,2); if(!$$s){exit(1);} fclose($$s);'"]
+      interval: 20s
+      timeout: 5s
+      retries: 8
+      start_period: 45s
+
+  web:
+    image: "${HTTPD_IMAGE:-httpd:2.4.68}"
+    restart: unless-stopped
+    init: true
+    depends_on:
+      wordpress:
+        condition: service_healthy
+    volumes:
+      - "wordpress_data:/var/www/html:ro"
+      - "./apache/httpd.conf:/usr/local/apache2/conf/httpd.conf:ro"
+    networks:
+      carida_cloudflare:
+        aliases:
+          - "${CLOUDFLARE_ALIAS:-wpdev-web}"
+      backend: {}
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /usr/local/apache2/logs/httpd.pid && kill -0 $$(cat /usr/local/apache2/logs/httpd.pid)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  wpcli:
+    image: "${WORDPRESS_RUNTIME_IMAGE:-wpdev-wordpress:0.1.0-rc1}"
+    profiles: ["tools"]
+    restart: "no"
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+      wordpress:
+        condition: service_healthy
+    working_dir: /var/www/html
+    entrypoint: ["wp", "--allow-root"]
+    environment:
+      TZ: "${TZ:-UTC}"
+      WORDPRESS_DB_HOST: "db:3306"
+      WORDPRESS_DB_NAME: "${MYSQL_DATABASE}"
+      WORDPRESS_DB_USER: "${MYSQL_USER}"
+      WORDPRESS_DB_PASSWORD: "${MYSQL_PASSWORD}"
+    volumes:
+      - "wordpress_data:/var/www/html"
+      - "./php/zz-dreamhost.ini:/usr/local/etc/php/conf.d/zz-dreamhost.ini:ro"
+    networks:
+      - backend
+
+  adminer:
+    image: "${ADMINER_IMAGE:-adminer:5.5.1}"
+    profiles: ["tools"]
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    networks:
+      carida_cloudflare:
+        aliases:
+          - "${ADMINER_ALIAS:-wpdev-adminer}"
+      backend: {}
+
+volumes:
+  wordpress_data:
+    name: "${WPDEV_PROJECT_SLUG:-wpdev}_wordpress_data"
+  mysql_data:
+    name: "${WPDEV_PROJECT_SLUG:-wpdev}_mysql_data"
+
+networks:
+  carida_cloudflare:
+    external: true
+    name: "${CLOUDFLARE_NETWORK:-carida_cloudflare}"
+  backend:
+    name: "${WPDEV_PROJECT_SLUG:-wpdev}_backend"
+    internal: true
