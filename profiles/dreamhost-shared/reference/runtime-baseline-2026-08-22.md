@@ -11,6 +11,16 @@ This file intentionally excludes usernames, server hostnames, login IP addresses
 - Architecture: x86_64
 - Apache: 2.4.58 (Ubuntu)
 
+## PHP — website assignment
+
+The DreamHost website settings for the active Data Inspire domain explicitly report:
+
+- Website PHP family: **8.3**
+
+This is the authoritative panel-side PHP assignment for the hosted website. The exact web/FastCGI patch version and effective web-runtime limits remain to be measured through a short-lived diagnostic request.
+
+This confirms that the production website PHP assignment differs from the default SSH/CLI PHP runtime described below.
+
 ## PHP — shell/CLI baseline
 
 - Default CLI PHP: 8.2.30 NTS
@@ -30,9 +40,9 @@ This file intentionally excludes usernames, server hostnames, login IP addresses
 - `max_file_uploads`: 20
 - `default_socket_timeout`: 60
 
-Important: these are shell/CLI observations. They must not be treated as authoritative web/FastCGI values until the website-assigned PHP version and web runtime are verified.
+Important: these are shell/CLI observations and must not be copied blindly into the website/FastCGI profile.
 
-### PHP modules observed
+### PHP modules observed from CLI
 
 `bcmath`, `bz2`, `calendar`, `ctype`, `curl`, `dom`, `exif`, `fileinfo`, `ftp`, `gd`, `gettext`, `imagick`, `imap`, `intl`, `mbstring`, `mysqli`, `mysqlnd`, `openssl`, `pcntl`, `PDO`, `pdo_mysql`, `pdo_sqlite`, `posix`, `pspell`, `session`, `SimpleXML`, `soap`, `sockets`, `sodium`, `sqlite3`, `xml`, `xmlreader`, `xmlwriter`, `xsl`, `Zend OPcache`, `zip`, `zlib` and standard PHP core modules.
 
@@ -61,24 +71,25 @@ The active Data Inspire WordPress installation has been positively identified an
 - `home` and `siteurl`: HTTPS canonical production URL confirmed
 - `DB_CHARSET`: `utf8`
 - `DB_COLLATE`: empty / not explicitly forced in `wp-config.php`
-
-On MySQL 8, `utf8` resolves to the legacy `utf8mb3` character set. The empty `DB_COLLATE` value means WordPress does not explicitly force a collation from `wp-config.php`; actual database/table metadata must therefore be inspected before the development profile chooses its schema defaults.
+- Effective WordPress database connection: `utf8mb4` / `utf8mb4_unicode_520_ci`
 
 The project-specific document root and URL are intentionally not required by the reusable provider profile.
 
 ## Database runtime
 
-The active WordPress database has been queried successfully through WP-CLI without exposing credentials. A separate sanitized reference records the details:
+The active WordPress database has been queried successfully through WP-CLI without exposing credentials. Separate sanitized references record the database and schema details.
 
-`database-baseline-2026-08-22.md`
-
-Confirmed at this stage:
+Confirmed:
 
 - MySQL server 8.0.41 (Ubuntu);
-- server default `utf8mb3` / `utf8mb3_unicode_ci`;
+- server/database default `utf8mb3` / `utf8mb3_unicode_ci`;
 - SQL mode `NO_ENGINE_SUBSTITUTION`;
 - 32 MiB `max_allowed_packet`;
-- database-scoped application grants captured and sanitized.
+- database-scoped application grants captured and sanitized;
+- 47 base tables, of which 45 are `utf8mb4`;
+- 46 InnoDB tables and one legacy MyISAM table;
+- no triggers, routines or events in the active schema;
+- reusable baseline selected as InnoDB + `utf8mb4`, with WordPress-oriented connection collation `utf8mb4_unicode_520_ci`.
 
 ## Validation state
 
@@ -88,23 +99,24 @@ Completed:
 - [x] OS/runtime fingerprint captured
 - [x] Apache version captured
 - [x] CLI PHP version/modules/settings captured
+- [x] DreamHost website PHP family captured: 8.3
 - [x] WP-CLI version captured
 - [x] Git version captured
 - [x] MySQL client version captured
 - [x] Active WordPress installation verified
 - [x] WordPress core version captured
-- [x] WordPress DB charset/collation configuration captured
-- [x] Database server fingerprint captured
-- [x] Database effective grants captured
+- [x] Database server fingerprint and effective grants captured
+- [x] Database/table charset, collation and engine inventory captured
+- [x] Effective WordPress database connection charset/collation captured
+- [x] Existing trigger/routine/event inventory captured
 
 Pending:
 
-- [ ] Website-assigned PHP version from DreamHost panel
-- [ ] Web/FastCGI PHP runtime confirmation
-- [ ] Database/table-level charset, collation and engine inventory
-- [ ] Existing trigger/routine/event metadata inventory
+- [ ] Exact website/FastCGI PHP patch version and selected web-runtime limits
 - [ ] Optional plugin/theme inventory
 
 ## Design implication
 
-The first runnable `dreamhost-shared` profile must emulate the measured production characteristics that materially affect application behavior, while avoiding unnecessary coupling to DreamHost-internal host details. The development stack should therefore reproduce compatibility constraints, not server identity.
+The first runnable `dreamhost-shared` profile must emulate the measured production characteristics that materially affect application behavior while avoiding unnecessary coupling to DreamHost-internal host details.
+
+The PHP runtime for production compatibility must target the **PHP 8.3 web family**, not the shell default PHP 8.2.30. CLI tooling may remain separately configurable because DreamHost itself exposes a different default CLI runtime.
