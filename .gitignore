@@ -10,6 +10,7 @@
 # DreamHost raw/private captures
 *shell-fingerprint*.txt
 *db-fingerprint*.txt
+*schema-fingerprint*.txt
 profiles/*/reference/private/
 profiles/*/reference/raw/
 
@@ -18,6 +19,8 @@ wp-content/uploads/
 wp-content/cache/
 wp-content/upgrade/
 wp-content/backup*/
+profiles/*/backups/
+backups/
 *.sql
 *.sql.gz
 *.dump
