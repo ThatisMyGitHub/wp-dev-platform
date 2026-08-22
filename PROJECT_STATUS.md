@@ -25,18 +25,9 @@ Raw fingerprints and account-specific identifiers remain outside the public repo
 
 ## Provider capability envelope captured
 
-The DreamHost Shared profile now records not only the current Data Inspire values but also the hosting-plan configuration capabilities available when a future solution needs them.
+The DreamHost Shared profile records both the current Data Inspire values and the hosting-plan configuration capabilities available when a future solution needs them.
 
-Documented capabilities include:
-
-- per-site PHP version selection;
-- panel-adjustable PHP limits (`memory_limit`, upload/post sizes, execution/input times and input variables);
-- temporary PHP warnings;
-- optional PHP extensions exposed by DreamHost, including `gmp` and `tidy`;
-- OPcache settings/information and advanced controls where the selected PHP version/plan permits them;
-- custom PHP configuration through DreamHost's PHP configuration mechanism;
-- configurable website document-root/directory mapping;
-- other provider-managed website services such as DNS, SSL/security, logs, file/migration tools and IP options where available.
+Documented capabilities include per-site PHP version selection, panel-adjustable PHP limits, temporary PHP warnings, optional PHP extensions, OPcache settings/information, custom PHP configuration, configurable website document roots and other provider-managed website services.
 
 Important scope rule: DreamHost documents PHP-setting changes as applying to all websites assigned to the same SFTP/SSH user. Future independent customers/sites should therefore use appropriately isolated hosting users when different PHP tuning may be required.
 
@@ -68,7 +59,8 @@ Implemented:
 - optional Adminer tools profile;
 - compatibility `doctor` script;
 - guarded database export/import helpers;
-- explicit compatibility contract documenting intentional approximations.
+- explicit compatibility contract documenting intentional approximations;
+- resource-bounded native PHP-extension compilation, defaulting to `PHP_BUILD_JOBS=1` for QNAP/Portainer builds.
 
 Optional extensions are not preinstalled merely because DreamHost can enable them. If a consumer requires one, the development runtime image must add it explicitly and production support must be validated.
 
@@ -81,12 +73,12 @@ Optional extensions are not preinstalled merely because DreamHost can enable the
 
 ## Automated RC validation — GREEN
 
-The strengthened GitHub Actions gate completed successfully on 2026-08-22 for RC head `1ba8e485ddc3f11b1cb096c39cb5959dbf0b8db8` (DreamHost RC validation run #40).
+The full strengthened GitHub Actions gate passed again on 2026-08-22 after the QNAP build hardening (DreamHost RC validation run #48, runtime head `f9a76855befe9aa0352bf20d9a0e5c28ce9e4a85`).
 
 Verified automatically on a clean Linux/Docker runner:
 
 1. Compose model validation.
-2. Fresh image builds from the pinned WordPress, Apache and MySQL bases.
+2. Fresh image builds from the pinned WordPress, Apache and MySQL bases using the bounded PHP-extension build.
 3. Fresh runtime startup with health checks.
 4. WordPress 7.0.4 installation.
 5. Compatibility doctor pass for PHP, required extensions, MySQL settings/grants, WordPress DB connection and Apache -> FastCGI -> PHP execution.
@@ -97,26 +89,21 @@ Verified automatically on a clean Linux/Docker runner:
 10. Final compatibility doctor pass after the round trip.
 11. Clean teardown of the disposable validation environment.
 
-The earlier theme/API-dependent media URL assertion was removed in favor of the provider-relevant invariant: the attachment record/path and physical upload must survive restart and remain directly servable through Apache.
+## Carida/QNAP validation status
 
-## Remaining RC1 acceptance gate
+The first Portainer deployment attempt on Carida correctly pulled `dev` and reached image construction, but failed before runtime startup inside the WordPress native PHP-extension compilation layer. The same image layer had passed on GitHub's 4-core runner; the original Dockerfile used `docker-php-ext-install -j "$(nproc)"`, allowing build concurrency to scale with the host-reported CPU count.
 
-**Generic Linux/Docker validation is complete.** RC1 is still not accepted or tagged as `v0.1.0` because it must now pass the actual Carida/QNAP/Portainer environment gate.
+RC1 was hardened rather than working around the NAS manually:
 
-Next validation on Carida:
+- native extension compilation now defaults to one job;
+- `PHP_BUILD_JOBS` is an explicit positive-integer build argument;
+- faster build environments may opt into higher concurrency only after validation;
+- Debian package installation is explicitly noninteractive;
+- the full generic validation gate passes with the new bounded configuration.
 
-1. Compose/build succeeds on QNAP/Portainer.
-2. MySQL initializes with the intended grants/settings.
-3. QNAP-safe WordPress volume initialization succeeds.
-4. Apache reaches PHP-FPM through FastCGI.
-5. Cloudflare Tunnel reaches the Apache service through `carida_cloudflare`.
-6. WordPress installation/admin/login work through the published HTTPS development hostname.
-7. `wpdev-doctor` passes from the WordPress container.
-8. Restart/redeploy persistence is confirmed on QNAP volumes.
-9. Permalinks/`.htaccess`, uploads and WP-CLI are exercised through the real published route.
-10. Database export/import dry run succeeds on Carida.
+The next Carida action is to pull/redeploy the existing `wpdev-rc1` Git-managed stack from current `dev`; the stack and its development-only credentials do not need to be recreated.
 
-See `profiles/dreamhost-shared/VALIDATION.md` for the execution procedure.
+After a successful build/start, continue with MySQL initialization, QNAP-safe volume initialization, Apache/FastCGI, Cloudflare publication, browser installation, doctor, permalinks/uploads, persistence and migration checks described in `profiles/dreamhost-shared/VALIDATION.md`.
 
 ## Migration follow-up — not an RC1 platform blocker
 
