@@ -35,3 +35,5 @@ RUN set -eux; \
     php -m | sort
 
 COPY php/zz-dreamhost.ini /usr/local/etc/php/conf.d/zz-dreamhost.ini
+COPY wordpress/wpdev-doctor /usr/local/bin/wpdev-doctor
+RUN chmod 0755 /usr/local/bin/wpdev-doctor
