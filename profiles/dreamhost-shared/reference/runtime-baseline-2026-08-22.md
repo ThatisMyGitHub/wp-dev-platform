@@ -59,6 +59,10 @@ The active Data Inspire WordPress installation has been positively identified an
 
 - WordPress core: 7.0.4
 - `home` and `siteurl`: HTTPS canonical production URL confirmed
+- `DB_CHARSET`: `utf8`
+- `DB_COLLATE`: empty / not explicitly forced in `wp-config.php`
+
+On MySQL 8, `utf8` resolves to the legacy `utf8mb3` character set. The empty `DB_COLLATE` value means WordPress does not explicitly force a collation from `wp-config.php`; actual database/table metadata must therefore be inspected before the development profile chooses its schema defaults.
 
 The project-specific document root and URL are intentionally not required by the reusable provider profile.
 
@@ -89,6 +93,7 @@ Completed:
 - [x] MySQL client version captured
 - [x] Active WordPress installation verified
 - [x] WordPress core version captured
+- [x] WordPress DB charset/collation configuration captured
 - [x] Database server fingerprint captured
 - [x] Database effective grants captured
 
