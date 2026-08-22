@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: mysql/Dockerfile
       args:
-        MYSQL_BASE_IMAGE: "${MYSQL_BASE_IMAGE}"
+        MYSQL_BASE_IMAGE: "${MYSQL_BASE_IMAGE:-mysql:8.0.41@sha256:bf577825b52ab281d6281fb281eabbfdc73507eda8f2c2745790251533ef0306}"
     image: "${MYSQL_RUNTIME_IMAGE:-wpdev-mysql:0.1.0-rc1}"
     restart: unless-stopped
     init: true
@@ -39,7 +39,7 @@ services:
       context: .
       dockerfile: wordpress/Dockerfile
       args:
-        WORDPRESS_BASE_IMAGE: "${WORDPRESS_BASE_IMAGE}"
+        WORDPRESS_BASE_IMAGE: "${WORDPRESS_BASE_IMAGE:-wordpress:7.0.4-php8.3-fpm@sha256:48fd4f0fee04801b95245c39d6ad915491ef00c943c8c359b1ea552e1647a18e}"
         WP_CLI_VERSION: "${WP_CLI_VERSION:-2.12.0}"
     image: "${WORDPRESS_RUNTIME_IMAGE:-wpdev-wordpress:0.1.0-rc1}"
     restart: "no"
@@ -68,7 +68,7 @@ services:
       context: .
       dockerfile: wordpress/Dockerfile
       args:
-        WORDPRESS_BASE_IMAGE: "${WORDPRESS_BASE_IMAGE}"
+        WORDPRESS_BASE_IMAGE: "${WORDPRESS_BASE_IMAGE:-wordpress:7.0.4-php8.3-fpm@sha256:48fd4f0fee04801b95245c39d6ad915491ef00c943c8c359b1ea552e1647a18e}"
         WP_CLI_VERSION: "${WP_CLI_VERSION:-2.12.0}"
     image: "${WORDPRESS_RUNTIME_IMAGE:-wpdev-wordpress:0.1.0-rc1}"
     restart: unless-stopped
@@ -89,8 +89,8 @@ services:
       WORDPRESS_CONFIG_EXTRA: |
         define('DISALLOW_FILE_EDIT', true);
         define('WP_AUTO_UPDATE_CORE', 'minor');
-        define('WP_MEMORY_LIMIT', '128M');
-        define('WP_MAX_MEMORY_LIMIT', '128M');
+        define('WP_MEMORY_LIMIT', '${WP_MEMORY_LIMIT:-128M}');
+        define('WP_MAX_MEMORY_LIMIT', '${WP_MAX_MEMORY_LIMIT:-128M}');
         define('WP_ENVIRONMENT_TYPE', '${WP_ENVIRONMENT:-development}');
         define('WP_HOME', '${WP_URL}');
         define('WP_SITEURL', '${WP_URL}');
@@ -123,7 +123,7 @@ services:
       context: .
       dockerfile: apache/Dockerfile
       args:
-        HTTPD_BASE_IMAGE: "${HTTPD_BASE_IMAGE}"
+        HTTPD_BASE_IMAGE: "${HTTPD_BASE_IMAGE:-httpd:2.4.68}"
     image: "${HTTPD_RUNTIME_IMAGE:-wpdev-httpd:0.1.0-rc1}"
     restart: unless-stopped
     init: true
