@@ -10,15 +10,15 @@ All three public GHCR RC images were pulled successfully from the QNAP Docker da
   - registry digest: `sha256:28714327339f7be9d4ba07271c93081b724d3a04fd6006bee748434a0522b66b`
   - local image ID: `sha256:136d89ee91be5f0e83aa1de0637ea7f7c02dac3b804a43b8f7b6023ce22c7f47`
 - `ghcr.io/thatismygithub/wp-dev-platform-httpd:0.1.0-rc1`
-  - registry digest: `sha256:c218ae7e785a53f161fb59c4e02cf0db53849ce0f3b0747acc6a6d621032ea99`
-  - local image ID: `sha256:1a94b1d111f4e933586512868744903af9c718f5d251de7fb5b0f272abc1bc51`
+  - original registry digest before FastCGI DNS correction: `sha256:c218ae7e785a53f161fb59c4e02cf0db53849ce0f3b0747acc6a6d621032ea99`
+  - corrected RC image registry digest: `sha256:46dc8f254c952b359c775b8a026f2d3b7b137e7a6dd1aafb29ad59765c396b9c`
 - `ghcr.io/thatismygithub/wp-dev-platform-mysql:0.1.0-rc1`
   - registry digest: `sha256:ef294eb37bc6932dd864bd323e037d69c3e9f8710710d7b280e9c2aea8ad4a59`
   - local image ID: `sha256:282feba2ae53ba49cd841c5da868a3ee4721e4ba6ff4d32ae33e3d8c2f5737b6`
 
 ## Portainer deployment/startup gate — PASS
 
-Validated runtime commit: `2151428798b470fe0c79d29a72a283f383ea96e6`.
+Initial validated runtime commit: `2151428798b470fe0c79d29a72a283f383ea96e6`.
 
 Observed service state:
 
@@ -65,6 +65,29 @@ Observed MySQL warnings are non-blocking official-image/runtime warnings rather 
 
 The CLI-password warning should be considered a security-hygiene improvement opportunity for the initialization helper before or after final release, but it is not an RC1 functional blocker and no password value is emitted in the logs.
 
+## Shared-network FastCGI DNS collision — FOUND AND FIXED
+
+The first public HTTPS request reached Apache but returned HTTP 503. Diagnostics proved:
+
+- Cloudflare Tunnel -> Apache was working;
+- PHP-FPM was listening successfully on port 9000;
+- Apache resolved the generic hostname `wordpress` to an unrelated container address on the shared `carida_cloudflare` network instead of the RC WordPress/PHP container on `wpdev-rc1_backend`;
+- Apache therefore attempted FastCGI against the wrong IP and logged `AH00957` / `AH01079` connection-refused errors.
+
+RC1 was corrected so the WordPress/PHP service receives a backend-only alias `wpdev-php-backend`, and Apache now targets `proxy:fcgi://wpdev-php-backend:9000` instead of the ambiguous generic `wordpress:9000` name.
+
+The CI gate was strengthened by deliberately creating a decoy `wordpress` alias on the shared external network. The new `Verify private FastCGI DNS isolation` check passes, and the full RC validation suite continues to pass afterward.
+
+## Cloudflare public application route — PASS
+
+A temporary published application route was created for the RC hostname and pointed to the Apache service on the shared Cloudflare Docker network.
+
+After redeployment with the corrected backend alias/runtime, the public HTTPS hostname successfully returned the normal fresh WordPress installation screen. This proves the complete path:
+
+`Cloudflare HTTPS -> Tunnel -> Apache -> FastCGI -> WordPress/PHP-FPM -> MySQL`
+
+The previous Apache-generated 503 is resolved.
+
 ## Next acceptance gate
 
-Create the temporary Cloudflare route to `http://wpdev-rc1-web:80`, complete a fresh WordPress installation through the HTTPS development hostname, then run the full `wpdev-doctor` and continue permalink/media/restart/redeploy/migration checks.
+Complete the fresh WordPress installation through the HTTPS development hostname, then run the full `wpdev-doctor` and continue permalink/media/restart/redeploy/migration checks.
