@@ -56,9 +56,20 @@ services:
         else
           echo "WordPress volume already initialized."
         fi
+
+        if [ ! -e /var/www/html/.htaccess ]; then
+          echo "Seeding standard root WordPress .htaccess for Apache development runtime."
+          cp /usr/local/share/wpdev/default.htaccess /var/www/html/.htaccess
+          chown www-data:www-data /var/www/html/.htaccess
+          chmod 0644 /var/www/html/.htaccess
+        else
+          echo "Existing .htaccess preserved."
+        fi
+
         test -f /var/www/html/index.php
         test -f /var/www/html/wp-includes/version.php
         test -f /var/www/html/wp-settings.php
+        test -f /var/www/html/.htaccess
     volumes:
       - "wordpress_data:/var/www/html"
     network_mode: "none"
@@ -123,7 +134,7 @@ services:
       context: .
       dockerfile: apache/Dockerfile
       args:
-        HTTPD_BASE_IMAGE: "${HTTPD_BASE_IMAGE:-httpd:2.4.68}"
+        HTTPD_BASE_IMAGE: "${HTTPD_BASE_IMAGE:-httpd:2.4.68@sha256:2920ed8587277d6aa8ea785e143e970835057123dc7bf1199d102c60c80a73bb}"
     image: "${HTTPD_RUNTIME_IMAGE:-wpdev-httpd:0.1.0-rc1}"
     restart: unless-stopped
     init: true
