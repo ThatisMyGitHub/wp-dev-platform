@@ -2,7 +2,7 @@
 
 ## Current phase
 
-**Phase 2 — `wp-dev-platform v0.1.0-rc1` implementation / validation preparation**
+**Phase 2 — `wp-dev-platform v0.1.0-rc1` Carida/QNAP validation**
 
 ## Phase 1 result
 
@@ -44,7 +44,7 @@ See `profiles/dreamhost-shared/provider-capabilities.md`.
 
 ## RC1 implementation status
 
-The first runnable `dreamhost-shared` profile is now present on `dev` and the repository version is `0.1.0-rc1`.
+The first runnable `dreamhost-shared` profile is present on `dev` and the repository version is `0.1.0-rc1`.
 
 Implemented:
 
@@ -79,22 +79,44 @@ Optional extensions are not preinstalled merely because DreamHost can enable the
 - DreamHost's database/server defaults are historically `utf8mb3`; RC1 creates clean `utf8mb4` databases because the measured WordPress application connection is already `utf8mb4`.
 - DreamHost's default SSH PHP is 8.2.30; RC1 deliberately runs bundled WP-CLI under the PHP 8.3 application runtime for deterministic project tooling.
 
-## Validation status
+## Automated RC validation — GREEN
 
-Repository-level YAML parsing and shell syntax were checked while preparing RC1, but this environment cannot execute Docker/Compose. Therefore **RC1 is not yet accepted or tagged as `v0.1.0`**.
+The strengthened GitHub Actions gate completed successfully on 2026-08-22 for RC head `1ba8e485ddc3f11b1cb096c39cb5959dbf0b8db8` (DreamHost RC validation run #40).
 
-The next step is deployment to Carida/Portainer and Phase 3-style validation of the candidate:
+Verified automatically on a clean Linux/Docker runner:
+
+1. Compose model validation.
+2. Fresh image builds from the pinned WordPress, Apache and MySQL bases.
+3. Fresh runtime startup with health checks.
+4. WordPress 7.0.4 installation.
+5. Compatibility doctor pass for PHP, required extensions, MySQL settings/grants, WordPress DB connection and Apache -> FastCGI -> PHP execution.
+6. Real friendly permalink request through Apache returning HTTP 200.
+7. Media import with the stored `_wp_attached_file` path requested directly through Apache and returning HTTP 200.
+8. Runtime restart followed by successful WordPress, permalink and uploaded-media persistence verification.
+9. Database export/import round trip using the guarded migration helpers.
+10. Final compatibility doctor pass after the round trip.
+11. Clean teardown of the disposable validation environment.
+
+The earlier theme/API-dependent media URL assertion was removed in favor of the provider-relevant invariant: the attachment record/path and physical upload must survive restart and remain directly servable through Apache.
+
+## Remaining RC1 acceptance gate
+
+**Generic Linux/Docker validation is complete.** RC1 is still not accepted or tagged as `v0.1.0` because it must now pass the actual Carida/QNAP/Portainer environment gate.
+
+Next validation on Carida:
 
 1. Compose/build succeeds on QNAP/Portainer.
 2. MySQL initializes with the intended grants/settings.
 3. QNAP-safe WordPress volume initialization succeeds.
 4. Apache reaches PHP-FPM through FastCGI.
-5. Cloudflare Tunnel reaches the Apache alias.
-6. WordPress installs and admin/login work.
-7. `scripts/doctor.sh` passes.
-8. Restart/redeploy persistence is confirmed.
-9. Permalinks/`.htaccess`, uploads and WP-CLI are exercised.
-10. Database export/import dry run succeeds.
+5. Cloudflare Tunnel reaches the Apache service through `carida_cloudflare`.
+6. WordPress installation/admin/login work through the published HTTPS development hostname.
+7. `wpdev-doctor` passes from the WordPress container.
+8. Restart/redeploy persistence is confirmed on QNAP volumes.
+9. Permalinks/`.htaccess`, uploads and WP-CLI are exercised through the real published route.
+10. Database export/import dry run succeeds on Carida.
+
+See `profiles/dreamhost-shared/VALIDATION.md` for the execution procedure.
 
 ## Migration follow-up — not an RC1 platform blocker
 
@@ -103,4 +125,4 @@ The next step is deployment to Carida/Portainer and Phase 3-style validation of 
 
 ## Next release target
 
-If RC1 passes validation without architecture-changing fixes, promote the accepted platform to **`v0.1.0`** and then pin `datainspire-web` to that released version.
+If RC1 passes Carida/QNAP validation without architecture-changing fixes, promote the accepted platform to **`v0.1.0`** and then pin `datainspire-web` to that released version.
