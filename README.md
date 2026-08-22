@@ -1,7 +1,7 @@
 # wp-dev-platform
 
-Reusable WordPress development-platform project for Data Inspire and future customer implementations.
+Reusable, provider-profile-driven WordPress development platform.
 
-The repository is being initialized. Active development takes place on `dev`; `main` is reserved for accepted baselines.
+Current production-ready profile: `dreamhost-shared` (`v0.1.0`).
 
-> Security: this repository is public. No credentials, private hostnames, database usernames, raw hosting fingerprints, backups, or customer secrets may be committed.
+See `PROJECT_STATUS.md` for release status and `profiles/dreamhost-shared/` for the validated runtime, compatibility contract, deployment instructions and acceptance evidence.
