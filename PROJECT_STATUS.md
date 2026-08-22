@@ -2,11 +2,13 @@
 
 ## Current phase
 
-**Phase 2 — `wp-dev-platform v0.1.0-rc1` Carida/QNAP validation**
+**Phase 2 complete — `wp-dev-platform v0.1.0-rc1` accepted on Carida/QNAP**
 
-## Phase 1 result
+**Next phase — promote the accepted platform to `v0.1.0`, then pin `datainspire-web` to that released version.**
 
-DreamHost discovery is complete. The normalized production compatibility baseline confirms:
+## DreamHost compatibility baseline
+
+DreamHost discovery is complete. The normalized production reference confirms:
 
 - Ubuntu 24.04.4 LTS host family;
 - Apache 2.4.58 on DreamHost;
@@ -14,111 +16,103 @@ DreamHost discovery is complete. The normalized production compatibility baselin
 - default DreamHost SSH/CLI PHP 8.2.30;
 - WordPress 7.0.4;
 - WP-CLI 2.12.0;
-- MySQL server 8.0.41;
+- MySQL 8.0.41;
 - SQL mode `NO_ENGINE_SUBSTITUTION`;
 - 32 MiB `max_allowed_packet`;
-- effective WordPress database connection `utf8mb4` / `utf8mb4_unicode_520_ci`;
+- effective WordPress DB connection `utf8mb4` / `utf8mb4_unicode_520_ci`;
 - measured database-scoped application grants;
-- 47 current production tables, with two legacy `utf8mb3` tables and one legacy MyISAM table treated as Data Inspire migration concerns rather than platform requirements.
+- 47 production tables, with the legacy `utf8mb3` / MyISAM exceptions treated as Data Inspire migration concerns rather than reusable platform requirements.
 
-Raw fingerprints and account-specific identifiers remain outside the public repository.
+Raw fingerprints, credentials and account-specific identifiers remain outside the public repository.
 
-## Provider capability envelope captured
+## Accepted RC1 architecture
 
-The DreamHost Shared profile records both the current Data Inspire values and the hosting-plan configuration capabilities available when a future solution needs them.
+The `dreamhost-shared` profile now provides:
 
-Documented capabilities include per-site PHP version selection, panel-adjustable PHP limits, temporary PHP warnings, optional PHP extensions, OPcache settings/information, custom PHP configuration, configurable website document roots and other provider-managed website services.
-
-Important scope rule: DreamHost documents PHP-setting changes as applying to all websites assigned to the same SFTP/SSH user. Future independent customers/sites should therefore use appropriately isolated hosting users when different PHP tuning may be required.
-
-See `profiles/dreamhost-shared/provider-capabilities.md`.
-
-## RC1 implementation status
-
-The first runnable `dreamhost-shared` profile is present on `dev` and the repository version is `0.1.0-rc1`.
-
-Implemented:
-
-- Docker Compose runtime;
-- split Apache -> FastCGI -> WordPress/PHP topology;
-- PHP 8.3 application runtime aligned with the measured DreamHost web family;
-- measured PHP limits and OPcache settings;
-- opt-in project-specific PHP INI override layer without mutating the reusable baseline;
+- build-free Portainer/QNAP deployment from validated GHCR images;
+- split Apache -> FastCGI -> WordPress/PHP 8.3 runtime;
 - MySQL 8.0.41 compatibility runtime;
-- clean InnoDB + `utf8mb4` reusable database defaults;
-- WordPress-oriented `utf8mb4_unicode_520_ci` collation policy;
-- restricted application user matching the measured DreamHost privilege set;
-- internal backend network;
-- external `carida_cloudflare` frontend integration;
-- no host-published application/database ports;
+- clean InnoDB + `utf8mb4` + `utf8mb4_unicode_520_ci` reusable DB policy;
+- measured DreamHost-compatible application grants;
+- private project backend network;
+- separate WordPress egress network for normal core/plugin/theme HTTPS traffic;
+- external `carida_cloudflare` integration only on the Apache frontend;
+- no host-published application or database ports;
 - persistent project-scoped WordPress and MySQL volumes;
-- QNAP-safe WordPress initialization based on the HCF tar-copy pattern;
-- container health checks;
-- secret-safe `.env.example`;
-- WP-CLI 2.12.0 administrative helper under the PHP 8.3 runtime;
-- optional Adminer tools profile;
-- compatibility `doctor` script;
-- guarded database export/import helpers;
-- explicit compatibility contract documenting intentional approximations;
-- source-build overlay retained for CI/developer verification;
-- Portainer/QNAP deployment manifest is build-free and consumes validated GHCR runtime images.
-
-Optional extensions are not preinstalled merely because DreamHost can enable them. If a consumer requires one, the development runtime image must add it explicitly and production support must be validated.
+- QNAP-safe WordPress volume initialization;
+- safe repair of an incomplete standard WordPress `.htaccess` marker block while preserving unrelated directives;
+- bundled WP-CLI 2.12.0 and compatibility doctor;
+- guarded, shared-host-safe DB export/import helpers;
+- optional project PHP override layer and Adminer tools profile;
+- source-build overlay retained for CI/developer validation only.
 
 ## Intentional compatibility approximations
 
-- DreamHost reports `cgi-fcgi`; RC1 uses PHP-FPM FastCGI (`fpm-fcgi`) behind Apache. The Apache -> FastCGI -> PHP execution boundary is preserved.
-- DreamHost Apache is 2.4.58; RC1 uses a current Apache 2.4 patch instead of deliberately pinning an older web-server patch.
-- DreamHost's database/server defaults are historically `utf8mb3`; RC1 creates clean `utf8mb4` databases because the measured WordPress application connection is already `utf8mb4`.
-- DreamHost's default SSH PHP is 8.2.30; RC1 deliberately runs bundled WP-CLI under the PHP 8.3 application runtime for deterministic project tooling.
+- DreamHost reports `cgi-fcgi`; RC1 uses PHP-FPM FastCGI (`fpm-fcgi`) behind Apache while preserving the Apache -> FastCGI -> PHP execution boundary.
+- DreamHost Apache is 2.4.58; RC1 uses a current Apache 2.4 patch rather than deliberately pinning an older patch release.
+- DreamHost server defaults are historically `utf8mb3`; clean RC databases use `utf8mb4` because the measured WordPress application connection is already `utf8mb4`.
+- DreamHost SSH defaults to PHP 8.2.30; RC tooling deliberately runs WP-CLI under the PHP 8.3 application runtime for deterministic project behavior.
 
 ## Automated RC validation — GREEN
 
-The current RC publication pipeline validates the runtime from source before publishing deployment images. The full strengthened gate verifies:
+The strengthened CI gate validates:
 
-1. Compose deployment and source-build model validation.
-2. Fresh source builds from the pinned WordPress, Apache and MySQL bases.
-3. Fresh runtime startup with health checks.
-4. WordPress 7.0.4 installation.
-5. Compatibility doctor pass for PHP, required extensions, MySQL settings/grants, WordPress DB connection and Apache -> FastCGI -> PHP execution.
-6. Real friendly permalink request through Apache returning HTTP 200.
-7. Media import with the stored `_wp_attached_file` path requested directly through Apache and returning HTTP 200.
-8. Runtime restart followed by successful WordPress, permalink and uploaded-media persistence verification.
-9. Database export/import round trip using the guarded migration helpers.
-10. Final compatibility doctor pass after the round trip.
-11. On `dev` pushes, the exact validated AMD64 images are authenticated and pushed to GHCR only after the preceding checks pass.
-12. Clean teardown of the disposable validation environment.
+1. Compose deployment and source-build models.
+2. Fresh source builds from pinned runtime bases.
+3. Runtime startup and health checks.
+4. A deliberately malformed WordPress `.htaccess` fixture and safe self-healing.
+5. Private FastCGI DNS isolation even with a decoy generic `wordpress` alias on the shared external network.
+6. WordPress outbound HTTPS.
+7. WordPress installation.
+8. Full PHP/extensions/MySQL/grants/DB-connection/Apache->FastCGI compatibility doctor.
+9. Real friendly permalink and uploaded-media delivery.
+10. Restart persistence.
+11. Guarded database export/import round trip.
+12. Final compatibility doctor.
+13. Clean disposable-environment teardown.
 
-## Carida/QNAP validation status
+The final self-healing regression run for RC head `886e2bb658f904d63e20585a81fa76c2234ceb14` passed all of these gates.
 
-Initial Portainer source-build attempts exposed that native PHP-extension compilation should not be part of the NAS deployment path. RC1 was therefore changed to a build/publish/consume model:
+## Carida/QNAP acceptance — PASS
 
-- CI/developer builds use `compose.build.yaml` and compile from source;
-- the validated runtime images are published to GHCR;
-- Portainer/QNAP uses `compose.yaml` only and pulls prebuilt images;
-- QNAP is not required to compile PHP extensions during deployment.
+The RC has now passed the real Carida/QNAP/Portainer acceptance suite.
 
-Registry/architecture gate is now **PASS** on Carida. Direct anonymous pulls from the QNAP Docker daemon succeeded for all three public RC images and each image was confirmed as `linux/amd64`:
+Validated evidence includes:
 
-- `ghcr.io/thatismygithub/wp-dev-platform-wordpress:0.1.0-rc1`
-  - registry digest: `sha256:28714327339f7be9d4ba07271c93081b724d3a04fd6006bee748434a0522b66b`
-  - local image ID: `sha256:136d89ee91be5f0e83aa1de0637ea7f7c02dac3b804a43b8f7b6023ce22c7f47`
-- `ghcr.io/thatismygithub/wp-dev-platform-httpd:0.1.0-rc1`
-  - registry digest: `sha256:c218ae7e785a53f161fb59c4e02cf0db53849ce0f3b0747acc6a6d621032ea99`
-  - local image ID: `sha256:1a94b1d111f4e933586512868744903af9c718f5d251de7fb5b0f272abc1bc51`
-- `ghcr.io/thatismygithub/wp-dev-platform-mysql:0.1.0-rc1`
-  - registry digest: `sha256:ef294eb37bc6932dd864bd323e037d69c3e9f8710710d7b280e9c2aea8ad4a59`
-  - local image ID: `sha256:282feba2ae53ba49cd841c5da868a3ee4721e4ba6ff4d32ae33e3d8c2f5737b6`
+- public GHCR images pull successfully as `linux/amd64`;
+- final self-healing WordPress RC registry digest observed on Carida: `sha256:1305bd62932f30b96bbb3ca216c397ba18a3317ae4fda5d444e68f3f789565c0`;
+- Portainer deployment with persistent named WordPress/MySQL volumes;
+- MySQL, WordPress/PHP and Apache healthy on the real QNAP host;
+- Cloudflare HTTPS -> Tunnel -> Apache -> FastCGI -> WordPress/PHP-FPM -> MySQL path verified;
+- shared-network FastCGI DNS collision discovered on Carida and fixed with the private `wpdev-php-backend` alias;
+- WordPress outbound HTTPS discovered as missing on the first live deployment and fixed with a separate egress bridge;
+- fresh WordPress installation and dashboard access through the published HTTPS development hostname;
+- full live `wpdev-doctor` pass;
+- friendly permalink and uploaded media through the public Cloudflare hostname;
+- empty persisted WordPress rewrite block discovered live, repaired, and encoded as safe self-healing behavior;
+- ordinary container restart persistence for DB, WordPress, post, media, permalink and full doctor;
+- Portainer Pull/redeploy persistence with the newest runtime image;
+- deliberately restored malformed `.htaccess` automatically repaired by `wordpress-init` on the real QNAP host;
+- post-redeploy post/media persistence, public permalink/media delivery and full doctor pass;
+- portable DB export produced successfully with no `GTID_PURGED` and no `CREATE DATABASE` statement;
+- export size observed as 117 KiB with SHA-256 `33f149080c408058e15b67eb7591b06a6e83cceee3684b323bfbeb794cd783e7`;
+- application tier stopped while MySQL remained healthy for the controlled round-trip;
+- after the guarded round-trip sequence, WordPress returned healthy, the test post and media metadata persisted, the public permalink/media checks passed, and the final `wpdev-doctor` passed every compatibility check.
 
-The next Carida action is to **Pull and redeploy** the existing Git-managed `wpdev-rc1` stack from current `dev` without deleting volumes or changing development credentials.
+Transcript note: the user-provided final excerpt begins after the direct MySQL import command, so its literal `Database import: PASS` line is not present in the captured excerpt. No import error was reported, and the complete post-import application/compatibility verification is green. This nuance is retained in the record rather than fabricating a missing output line.
 
-After a successful runtime start, continue with MySQL initialization, QNAP-safe WordPress volume initialization, Apache/FastCGI, Cloudflare publication, browser installation, doctor, permalinks/uploads, persistence and migration checks described in `profiles/dreamhost-shared/VALIDATION.md`.
+## RC1 acceptance decision
 
-## Migration follow-up — not an RC1 platform blocker
+**Accepted.** No unresolved architecture-changing blocker remains for `wp-dev-platform v0.1.0-rc1`.
 
-- determine the provenance/current dependency status of the legacy Data Inspire `feeds` table;
-- inventory current Data Inspire plugins/themes before importing the existing site into the validated platform.
+Non-blocking follow-ups remain:
+
+- improve the MySQL initialization helper to avoid the CLI password warning where practical;
+- strengthen the Apache container health check beyond process-only status;
+- relax the generic doctor from requiring routine/trigger privileges if the reusable platform contract is later narrowed beyond the measured DreamHost envelope;
+- investigate the provenance/dependency status of the legacy Data Inspire `feeds` table;
+- inventory current Data Inspire plugins/themes before importing production content.
 
 ## Next release target
 
-If RC1 passes Carida/QNAP validation without architecture-changing fixes, promote the accepted platform to **`v0.1.0`** and then pin `datainspire-web` to that released version.
+Promote the accepted RC to **`v0.1.0`**, merge the release candidate into `main`, publish immutable release artifacts/tags, and then update `datainspire-web` to consume the released platform version rather than the mutable RC tag.
