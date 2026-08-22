@@ -11,15 +11,25 @@ This file intentionally excludes usernames, server hostnames, login IP addresses
 - Architecture: x86_64
 - Apache: 2.4.58 (Ubuntu)
 
-## PHP — website assignment
+## PHP — production web/FastCGI runtime
 
-The DreamHost website settings for the active Data Inspire domain explicitly report:
+The DreamHost panel reports the active website as assigned to PHP 8.3. A short-lived HTTPS diagnostic executed through the actual hosted site confirmed the effective runtime precisely:
 
-- Website PHP family: **8.3**
+- PHP: **8.3.30**
+- SAPI: **`cgi-fcgi`**
+- `memory_limit`: `128M`
+- `max_execution_time`: `120`
+- `max_input_time`: `-1`
+- `max_input_vars`: `3000`
+- `post_max_size`: `512M`
+- `upload_max_filesize`: `512M`
+- `max_file_uploads`: `20`
+- `default_socket_timeout`: `60`
+- `opcache.enable`: `1`
 
-This is the authoritative panel-side PHP assignment for the hosted website. The exact web/FastCGI patch version and effective web-runtime limits remain to be measured through a short-lived diagnostic request.
+The temporary diagnostic file was removed immediately after the successful request. It contained no credentials, environment dump, filesystem paths, database information or full `phpinfo()` output.
 
-This confirms that the production website PHP assignment differs from the default SSH/CLI PHP runtime described below.
+This web/FastCGI result is the authoritative PHP compatibility target for the production website.
 
 ## PHP — shell/CLI baseline
 
@@ -40,7 +50,7 @@ This confirms that the production website PHP assignment differs from the defaul
 - `max_file_uploads`: 20
 - `default_socket_timeout`: 60
 
-Important: these are shell/CLI observations and must not be copied blindly into the website/FastCGI profile.
+The CLI and web runtimes are intentionally treated as separate contexts. The production application compatibility target is PHP 8.3.30 FastCGI; DreamHost's default shell interpreter remains PHP 8.2.30 unless an operator explicitly selects another CLI binary.
 
 ### PHP modules observed from CLI
 
@@ -99,7 +109,11 @@ Completed:
 - [x] OS/runtime fingerprint captured
 - [x] Apache version captured
 - [x] CLI PHP version/modules/settings captured
-- [x] DreamHost website PHP family captured: 8.3
+- [x] DreamHost website PHP family captured
+- [x] Exact web/FastCGI PHP patch version captured
+- [x] Effective web-runtime limits captured
+- [x] SAPI confirmed as `cgi-fcgi`
+- [x] OPcache confirmed enabled in web runtime
 - [x] WP-CLI version captured
 - [x] Git version captured
 - [x] MySQL client version captured
@@ -110,13 +124,15 @@ Completed:
 - [x] Effective WordPress database connection charset/collation captured
 - [x] Existing trigger/routine/event inventory captured
 
-Pending:
+Optional follow-up:
 
-- [ ] Exact website/FastCGI PHP patch version and selected web-runtime limits
-- [ ] Optional plugin/theme inventory
+- [ ] WordPress plugin/theme inventory
+- [ ] Determine provenance/current dependency status of the legacy `feeds` table during Data Inspire migration analysis
 
 ## Design implication
 
-The first runnable `dreamhost-shared` profile must emulate the measured production characteristics that materially affect application behavior while avoiding unnecessary coupling to DreamHost-internal host details.
+The DreamHost discovery phase now provides a sufficient measured baseline to build `wp-dev-platform v0.1.0-rc1`.
 
-The PHP runtime for production compatibility must target the **PHP 8.3 web family**, not the shell default PHP 8.2.30. CLI tooling may remain separately configurable because DreamHost itself exposes a different default CLI runtime.
+The application runtime should target **PHP 8.3.30 compatibility**, Apache-hosted PHP behavior, web execution limits matching the measured FastCGI environment where materially relevant, MySQL 8 compatibility, and the selected clean InnoDB + `utf8mb4` database policy.
+
+The platform should reproduce compatibility constraints rather than DreamHost server identity. The shell's PHP 8.2 default is an operational characteristic and should not drive the application container runtime.
