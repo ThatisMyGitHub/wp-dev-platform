@@ -8,13 +8,15 @@ All three public GHCR RC images were pulled successfully from the QNAP Docker da
 
 - `ghcr.io/thatismygithub/wp-dev-platform-wordpress:0.1.0-rc1`
   - original registry digest before outbound-network correction: `sha256:28714327339f7be9d4ba07271c93081b724d3a04fd6006bee748434a0522b66b`
-  - corrected RC image registry digest: `sha256:ea1ccac9d895ab7e323ff04476114556a1604a3c4b05798daee8aabd387347ba`
+  - corrected RC image registry digest after outbound-network correction: `sha256:ea1ccac9d895ab7e323ff04476114556a1604a3c4b05798daee8aabd387347ba`
 - `ghcr.io/thatismygithub/wp-dev-platform-httpd:0.1.0-rc1`
   - original registry digest before FastCGI DNS correction: `sha256:c218ae7e785a53f161fb59c4e02cf0db53849ce0f3b0747acc6a6d621032ea99`
   - corrected RC image registry digest: `sha256:46dc8f254c952b359c775b8a026f2d3b7b137e7a6dd1aafb29ad59765c396b9c`
 - `ghcr.io/thatismygithub/wp-dev-platform-mysql:0.1.0-rc1`
   - registry digest: `sha256:ef294eb37bc6932dd864bd323e037d69c3e9f8710710d7b280e9c2aea8ad4a59`
   - observed local image ID during initial artifact validation: `sha256:282feba2ae53ba49cd841c5da868a3ee4721e4ba6ff4d32ae33e3d8c2f5737b6`
+
+The final WordPress RC digest after the `.htaccess` self-healing runtime change is intentionally recorded only after the corresponding GHCR publish/pull verification on Carida.
 
 ## Portainer deployment/startup gate — PASS
 
@@ -54,7 +56,7 @@ Sanitized startup logs confirm:
 
 - MySQL 8.0.41 initialized the data directory, created the RC database/application user, executed `/docker-entrypoint-initdb.d/10-restrict-app-user.sh`, completed the temporary initialization server cycle and restarted ready for connections on port 3306;
 - InnoDB initialized successfully;
-- WordPress volume initialization completed and the existing `.htaccess` was preserved;
+- WordPress volume initialization completed;
 - the WordPress/PHP container generated `wp-config.php` from the supplied `WORDPRESS_*` environment contract;
 - PHP-FPM started and reported `ready to handle connections`;
 - Apache 2.4.68 reported `configured -- resuming normal operations`.
@@ -74,7 +76,7 @@ The first public HTTPS request reached Apache but returned HTTP 503. Diagnostics
 
 RC1 was corrected so the WordPress/PHP service receives a backend-only alias `wpdev-php-backend`, and Apache now targets `proxy:fcgi://wpdev-php-backend:9000` instead of the ambiguous generic `wordpress:9000` name.
 
-The CI gate was strengthened by deliberately creating a decoy `wordpress` alias on the shared external network. The new `Verify private FastCGI DNS isolation` check passes, and the full RC validation suite continues to pass afterward.
+The CI gate was strengthened by deliberately creating a decoy `wordpress` alias on the shared external network. The `Verify private FastCGI DNS isolation` check passes, and the full RC validation suite continues to pass afterward.
 
 ## Cloudflare public application route — PASS
 
@@ -121,12 +123,58 @@ Observed PASS checks:
 
 Result: `wp-dev-platform DreamHost Shared compatibility doctor passed.`
 
-## Generic CI status after outbound-network correction — PASS
+## Live friendly permalink and media gate — PASS after discovered rewrite defect
 
-The RC workflow for commit `18314b16f7b2532df7198be05b8c0f7e0d280469` completed successfully, including:
+A published test post and imported PNG fixture were created on the live Carida instance.
 
+Initial results:
+
+- media import and public media delivery through Cloudflare — PASS;
+- friendly permalink — FAIL with HTTP 404.
+
+Diagnostics proved:
+
+- WordPress permalink structure was correctly set to `/%postname%/`;
+- the published test post existed and was accessible by ID;
+- Apache had `mod_rewrite` loaded;
+- the shared `.htaccess` seen by both PHP and Apache contained the standard WordPress markers but no rewrite directives between them.
+
+The canonical RC WordPress rewrite block was restored manually. The same published permalink immediately passed through the Cloudflare hostname, while the media fixture continued to pass.
+
+RC1 was subsequently strengthened with a safe `.htaccess` repair helper. It repairs only a standard WordPress marker block that lacks the canonical front-controller rule and preserves unrelated directives outside that block. Files without a standard WordPress marker block remain untouched.
+
+The CI suite now includes `Verify malformed WordPress htaccess self-healing`, which reproduces the empty-block condition with custom directives around it and requires both the restored WordPress rewrite rule and the surrounding directives to survive.
+
+## Live restart-persistence gate — PASS
+
+The real Carida services were restarted individually in dependency order:
+
+1. MySQL;
+2. WordPress/PHP-FPM;
+3. Apache.
+
+All three returned to healthy state.
+
+After restart, the following persisted successfully:
+
+- WordPress installed state;
+- published test post and its slug/status;
+- imported media attachment metadata/path;
+- friendly permalink through the public Cloudflare hostname;
+- uploaded media through the public Cloudflare hostname.
+
+A full `wpdev-doctor` was then rerun after the restart and passed every check, including PHP runtime/settings/extensions, MySQL version/settings/grants, WordPress installed state, DB charset/collation, outbound HTTPS and Apache -> FastCGI -> PHP runtime.
+
+This closes the ordinary container-restart persistence gate on the real QNAP host.
+
+## Latest generic CI — PASS
+
+The final self-healing regression workflow for RC head `886e2bb658f904d63e20585a81fa76c2234ceb14` completed successfully. It passed:
+
+- deployment/build validation;
 - source image build;
 - runtime startup;
+- malformed WordPress `.htaccess` self-healing;
 - private FastCGI DNS isolation;
 - WordPress outbound HTTPS;
 - WordPress installation;
@@ -134,8 +182,13 @@ The RC workflow for commit `18314b16f7b2532df7198be05b8c0f7e0d280469` completed 
 - real permalink and media delivery;
 - restart persistence;
 - database export/import round trip;
-- final doctor.
+- final doctor;
+- clean teardown.
 
-## Next acceptance gate
+## Remaining acceptance gates
 
-Validate real friendly permalinks and media upload through the published Carida hostname, then verify restart persistence, Portainer redeploy persistence and the Carida-side guarded database export/import dry run.
+1. Confirm the final self-healing WordPress RC image has been published to GHCR and pull that exact image on Carida.
+2. Perform a Portainer `Pull and redeploy` with no volume deletion or environment changes.
+3. Confirm the existing post, permalink, media and full doctor remain valid after redeploy.
+4. Complete the guarded Carida-side database export/import dry run.
+5. If those pass, close RC1 acceptance and prepare promotion to `v0.1.0`.
