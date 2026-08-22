@@ -2,11 +2,17 @@
 
 ## Current phase
 
-**Phase 3 — `wp-dev-platform v0.1.0` promoted to `main` after accepted Carida/QNAP validation.**
+**Phase 3 — `wp-dev-platform v0.1.0` promoted to `main`; immutable GHCR release artifacts verified on Carida/QNAP.**
 
 PR #1 was merged into `main` on 2026-08-22. The repository `VERSION` is `0.1.0`, runtime defaults reference the `0.1.0` GHCR image tags, and OCI image labels identify version `0.1.0`.
 
-The connected GitHub integration used for this session does not expose Git tag or GitHub Release creation. Therefore the immutable repository tag/release object `v0.1.0` must still be created through GitHub UI/CLI before downstream consumers treat the release as fully immutable.
+All three public `0.1.0` GHCR images have now been pulled successfully from the real Carida/QNAP Docker daemon. The immutable release digests are:
+
+- WordPress/PHP: `sha256:c09d62b93d4da84f4adf92f2f5004f24de5fcc13c0318594d34a22dca8eec76f`
+- Apache/httpd: `sha256:33998658fc3ff8da98834ced9f90468e3f4d2c1d7b5057550a81cecb17f0bf9c`
+- MySQL: `sha256:423cba3230fccc11ebf1cfecd49808db1f8ee23d5f608c0d11eee0598c1a433e`
+
+The connected GitHub integration used for this session does not expose Git tag or GitHub Release creation. Therefore the immutable repository tag/release object `v0.1.0` must still be created through GitHub UI/CLI before downstream consumers treat the repository release as fully immutable.
 
 ## DreamHost compatibility baseline
 
@@ -73,7 +79,7 @@ The strengthened validation gate covers:
 12. Final compatibility doctor.
 13. Clean disposable-environment teardown.
 
-The final `0.1.0` PR-triggered validation for release head `2addacf0aafeaf42cf11b7a85873094bb4945f49` passed all functional gates. Its GHCR publish step is intentionally skipped for pull-request events; publication is performed only by the corresponding push-to-`dev` workflow. The connector cannot enumerate that push-only run, so publish completion should be independently verified by pulling the `0.1.0` tags before downstream pinning.
+The final `0.1.0` PR-triggered validation for release head `2addacf0aafeaf42cf11b7a85873094bb4945f49` passed all functional gates. Its GHCR publish step is intentionally skipped for pull-request events; publication is performed by the corresponding push-to-`dev` workflow. Publication is now independently confirmed by successful pulls of all three `0.1.0` tags on Carida/QNAP and the release digests recorded above.
 
 ## Carida/QNAP acceptance — PASS
 
@@ -101,7 +107,7 @@ Transcript note: the final user-provided excerpt begins after the direct MySQL i
 
 ## Release decision
 
-**Accepted and merged.** No unresolved architecture-changing blocker remains for `wp-dev-platform v0.1.0`.
+**Accepted, merged and release images verified.** No unresolved architecture-changing blocker remains for `wp-dev-platform v0.1.0`.
 
 Non-blocking follow-ups remain:
 
@@ -113,6 +119,5 @@ Non-blocking follow-ups remain:
 
 ## Next action
 
-1. Verify all three public GHCR `0.1.0` tags can be pulled and record their immutable digests.
-2. Create Git tag/release `v0.1.0` at the final `main` release commit.
-3. Pin `datainspire-web` to the immutable `v0.1.0` platform release and begin the Data Inspire migration/integration phase.
+1. Create Git tag/release `v0.1.0` at the final `main` release commit after these release-evidence documentation updates.
+2. Pin `datainspire-web` to the immutable `v0.1.0` platform release and begin the Data Inspire migration/integration phase.
