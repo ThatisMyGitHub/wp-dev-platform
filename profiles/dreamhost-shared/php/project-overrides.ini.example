@@ -1,0 +1,27 @@
+; Optional project-specific PHP overrides for the dreamhost-shared profile.
+;
+; Copy this file to:
+;   php/project-overrides.ini
+; and start Compose with both compose files:
+;   docker compose --env-file .env -f compose.yaml -f compose.php-overrides.yaml up -d --build
+;
+; Only set values that have been confirmed as supported for the target
+; DreamHost plan/site/user. The base zz-dreamhost.ini remains the measured
+; Data Inspire compatibility baseline.
+;
+; Examples (commented intentionally):
+;
+; memory_limit = 256M
+; upload_max_filesize = 256M
+; post_max_size = 300M
+; max_execution_time = 180
+; max_input_time = 180
+; max_input_vars = 5000
+;
+; OPcache example — verify the corresponding DreamHost control first:
+; opcache.revalidate_freq = 2
+; opcache.validate_timestamps = 1
+;
+; Do not use this file to pretend a PHP extension exists. Optional extensions
+; such as gmp/tidy must also be installed in the development PHP image and
+; confirmed enabled on the target DreamHost site/user.
