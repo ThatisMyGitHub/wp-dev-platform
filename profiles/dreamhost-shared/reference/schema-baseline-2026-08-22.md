@@ -2,7 +2,7 @@
 
 Sanitized schema reference captured from the active Data Inspire WordPress database.
 
-This file intentionally excludes database names, account names, host/network identifiers, credentials and table names that could unnecessarily expose project-specific implementation details.
+This file intentionally excludes database names, account names, host/network identifiers and credentials. Project-specific table prefixes are also omitted below; only functional table identities are retained where useful for migration analysis.
 
 ## WordPress database configuration
 
@@ -47,6 +47,26 @@ Therefore:
 - 46 of 47 tables are InnoDB;
 - 1 of 47 tables remains MyISAM.
 
+## Legacy table identities
+
+The two nonconforming tables were identified without modifying production:
+
+1. `yoast_prominent_words`
+   - Engine: InnoDB
+   - Collation: `utf8mb3_general_ci`
+   - Approximate rows observed: 177
+   - Functional attribution: Yoast prominent-words data.
+   - Migration interpretation: plugin/legacy application data, not a reusable hosting-platform requirement.
+
+2. `feeds`
+   - Engine: MyISAM
+   - Collation: `utf8mb3_general_ci`
+   - Approximate rows observed: 1
+   - Functional attribution: unresolved from the table name alone.
+   - Migration interpretation: provenance must be checked against the installed/current plugin set or source code before deciding whether it should be migrated, normalized or retired.
+
+No production table conversion, deletion or cleanup is authorized by this discovery work.
+
 ## Stored database objects
 
 - Triggers: 0
@@ -61,8 +81,8 @@ The reusable `dreamhost-shared` profile should use a clean **InnoDB + `utf8mb4`*
 
 For WordPress-oriented compatibility, `utf8mb4_unicode_520_ci` is the preferred initial connection/application collation because that is the collation selected by the measured production WordPress runtime. Existing migrated tables using `utf8mb4_unicode_ci` remain compatible and do not need to be normalized merely to satisfy the development template.
 
-The two remaining legacy `utf8mb3` tables and the single MyISAM table must still be identified before any production migration/normalization plan is proposed. Their legacy state is treated as project data to assess, not as a reusable platform requirement.
+The two legacy tables are treated as Data Inspire migration concerns, not as reusable platform defaults.
 
-## Remaining schema check
+## Remaining schema/migration check
 
-Identify the two legacy tables and determine whether they belong to WordPress core, an active plugin, or abandoned/legacy functionality. No production schema changes are authorized by this discovery phase.
+Determine the provenance and active dependency status of the legacy `feeds` table. The Yoast table is already functionally identified. No production schema changes are authorized by this discovery phase.
