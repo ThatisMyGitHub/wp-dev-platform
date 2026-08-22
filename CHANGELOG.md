@@ -4,10 +4,17 @@ All notable platform changes are recorded here.
 
 ## [Unreleased]
 
+### Validation
+
+- Enhanced generic Linux/Docker RC gate is green on 2026-08-22 (DreamHost RC validation run #40).
+- Fresh install, compatibility doctor, real Apache permalink delivery, uploaded-media delivery, restart persistence, database export/import round trip and final doctor all passed.
+- Media validation now uses the persisted WordPress attachment path (`_wp_attached_file`) and direct Apache delivery rather than theme/API-dependent attachment URL rendering.
+
 ### Pending
 
-- Carida/Portainer deployment validation of the first DreamHost runtime RC.
-- Fresh-install, persistence, permalink, upload, privilege and migration dry-run tests.
+- Carida/QNAP/Portainer deployment validation of the first DreamHost runtime RC.
+- Cloudflare Tunnel publication and HTTPS-route validation on the actual Carida environment.
+- QNAP volume persistence/redeploy validation and Carida-side migration dry run.
 
 ## [0.1.0-rc1] - 2026-08-22
 
