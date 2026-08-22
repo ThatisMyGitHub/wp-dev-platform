@@ -97,12 +97,15 @@ jobs:
             media import /var/www/html/wpdev-ci.png --title='CI media fixture' --porcelain | tr -d '\r')"
           test -n "$ATTACHMENT_ID"
 
-          MEDIA_URL="$(docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
-            eval 'echo wp_get_attachment_url((int) $args[0]);' "$ATTACHMENT_ID" | tr -d '\r')"
-          test -n "$MEDIA_URL"
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            option update wpdev_ci_attachment_id "$ATTACHMENT_ID"
+
+          MEDIA_PATH="$(docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            post meta get "$ATTACHMENT_ID" _wp_attached_file | tr -d '\r')"
+          test -n "$MEDIA_PATH"
 
           MEDIA_STATUS="$(docker compose --env-file .env -f compose.yaml exec -T wordpress \
-            curl -sS -o /dev/null -w '%{http_code}' "$MEDIA_URL")"
+            curl -sS -o /dev/null -w '%{http_code}' "http://web/wp-content/uploads/$MEDIA_PATH")"
           test "$MEDIA_STATUS" = "200"
 
           docker compose --env-file .env -f compose.yaml exec -T wordpress rm -f /var/www/html/wpdev-ci.png
@@ -120,11 +123,16 @@ jobs:
             curl -sS -o /dev/null -w '%{http_code}' http://web/ci-permalink-fixture/)"
           test "$PERMALINK_STATUS" = "200"
 
-          MEDIA_URL="$(docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
-            eval '$posts=get_posts(["post_type"=>"attachment","post_status"=>"inherit","s"=>"CI media fixture","numberposts"=>1]); if (!$posts) { exit(1); } echo wp_get_attachment_url($posts[0]->ID);' | tr -d '\r')"
-          test -n "$MEDIA_URL"
+          ATTACHMENT_ID="$(docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            option get wpdev_ci_attachment_id | tr -d '\r')"
+          test -n "$ATTACHMENT_ID"
+
+          MEDIA_PATH="$(docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            post meta get "$ATTACHMENT_ID" _wp_attached_file | tr -d '\r')"
+          test -n "$MEDIA_PATH"
+
           MEDIA_STATUS="$(docker compose --env-file .env -f compose.yaml exec -T wordpress \
-            curl -sS -o /dev/null -w '%{http_code}' "$MEDIA_URL")"
+            curl -sS -o /dev/null -w '%{http_code}' "http://web/wp-content/uploads/$MEDIA_PATH")"
           test "$MEDIA_STATUS" = "200"
 
       - name: Database export/import dry run
