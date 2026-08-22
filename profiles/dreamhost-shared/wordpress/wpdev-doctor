@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+FAIL=0
+SMOKE_FILE=""
+
+pass() { printf 'PASS  %s\n' "$*"; }
+fail() { printf 'FAIL  %s\n' "$*" >&2; FAIL=1; }
+
+cleanup() {
+  if [[ -n "$SMOKE_FILE" ]]; then
+    rm -f "/var/www/html/$SMOKE_FILE" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT HUP INT TERM
+
+: "${WORDPRESS_DB_HOST:?WORDPRESS_DB_HOST is required}"
+: "${WORDPRESS_DB_NAME:?WORDPRESS_DB_NAME is required}"
+: "${WORDPRESS_DB_USER:?WORDPRESS_DB_USER is required}"
+: "${WORDPRESS_DB_PASSWORD:?WORDPRESS_DB_PASSWORD is required}"
+
+DB_HOST="${WORDPRESS_DB_HOST%%:*}"
+DB_PORT="${WORDPRESS_DB_HOST##*:}"
+if [[ "$DB_PORT" == "$DB_HOST" ]]; then
+  DB_PORT=3306
+fi
+
+MYSQL=(mysql --protocol=tcp -h "$DB_HOST" -P "$DB_PORT" -u"$WORDPRESS_DB_USER" -p"$WORDPRESS_DB_PASSWORD" "$WORDPRESS_DB_NAME")
+
+PHP_VERSION_ACTUAL="$(php -r 'echo PHP_VERSION;' 2>/dev/null || true)"
+[[ "$PHP_VERSION_ACTUAL" == 8.3.* ]] && pass "PHP runtime is $PHP_VERSION_ACTUAL (expected 8.3.x)" || fail "PHP runtime is '$PHP_VERSION_ACTUAL' (expected 8.3.x)"
+
+PHP_LIMITS="$(php -r 'echo ini_get("memory_limit"),"|",ini_get("max_execution_time"),"|",ini_get("max_input_time"),"|",ini_get("max_input_vars"),"|",ini_get("post_max_size"),"|",ini_get("upload_max_filesize"),"|",ini_get("max_file_uploads"),"|",ini_get("default_socket_timeout"),"|",ini_get("opcache.enable");' 2>/dev/null || true)"
+[[ "$PHP_LIMITS" == '128M|120|-1|3000|512M|512M|20|60|1' ]] && pass "Measured DreamHost PHP limits/OPcache are applied" || fail "PHP settings mismatch: $PHP_LIMITS"
+
+PHP_MODULES="$(php -m 2>/dev/null || true)"
+REQUIRED_MODULES=(
+  bcmath bz2 calendar curl dom exif fileinfo ftp gd gettext imagick intl mbstring
+  mysqli mysqlnd pcntl PDO pdo_mysql pdo_sqlite SimpleXML soap sockets sodium sqlite3
+  xml xmlreader xmlwriter xsl zip "Zend OPcache"
+)
+MISSING_MODULES=()
+for module in "${REQUIRED_MODULES[@]}"; do
+  if ! grep -Fxq "$module" <<<"$PHP_MODULES"; then
+    MISSING_MODULES+=("$module")
+  fi
+done
+if (( ${#MISSING_MODULES[@]} == 0 )); then
+  pass "DreamHost-compatible PHP extension baseline is present"
+else
+  fail "Missing PHP modules: ${MISSING_MODULES[*]}"
+fi
+
+DB_VERSION="$("${MYSQL[@]}" -Nse 'SELECT VERSION()' 2>/dev/null || true)"
+[[ "$DB_VERSION" == 8.0.41* ]] && pass "MySQL runtime is $DB_VERSION" || fail "MySQL runtime is '$DB_VERSION' (expected 8.0.41.x)"
+
+DB_SETTINGS="$("${MYSQL[@]}" -Nse "SELECT CONCAT(@@sql_mode,'|',@@max_allowed_packet,'|',@@lower_case_table_names,'|',@@character_set_server,'|',@@collation_server,'|',@@default_storage_engine)" 2>/dev/null || true)"
+[[ "$DB_SETTINGS" == 'NO_ENGINE_SUBSTITUTION|33554432|0|utf8mb4|utf8mb4_unicode_520_ci|InnoDB' ]] && pass "DreamHost SQL settings and clean reusable schema defaults are applied" || fail "Database settings mismatch: $DB_SETTINGS"
+
+GRANTS="$("${MYSQL[@]}" -Nse 'SHOW GRANTS FOR CURRENT_USER()' 2>/dev/null || true)"
+if grep -q 'TRIGGER' <<<"$GRANTS" && grep -q 'CREATE ROUTINE' <<<"$GRANTS" && ! grep -Eq '(^|[, ])EVENT([, ]|$)' <<<"$GRANTS" && ! grep -q 'GRANT OPTION' <<<"$GRANTS"; then
+  pass "Application grants match the measured DreamHost privilege envelope"
+else
+  fail "Application grants do not match the intended DreamHost privilege model"
+fi
+
+if wp --allow-root core is-installed >/dev/null 2>&1; then
+  pass "WordPress is installed"
+else
+  fail "WordPress is not installed; complete installation before running the full doctor"
+fi
+
+WP_RUNTIME="$(wp --allow-root eval 'global $wpdb; echo $wpdb->charset,"|",$wpdb->collate;' 2>/dev/null || true)"
+[[ "$WP_RUNTIME" == 'utf8mb4|utf8mb4_unicode_520_ci' ]] && pass "WordPress DB connection is utf8mb4 / unicode_520" || fail "WordPress DB connection mismatch: $WP_RUNTIME"
+
+SMOKE_FILE="wpdev-runtime-$RANDOM-$$.php"
+php -r 'file_put_contents("/var/www/html/'"$SMOKE_FILE"'", "<?php header(\"Content-Type: text/plain\"); echo PHP_VERSION, \"|\", PHP_SAPI;");'
+WEB_RUNTIME="$(php -r '$ctx=stream_context_create(["http"=>["timeout"=>5]]); $v=@file_get_contents("http://web/'"$SMOKE_FILE"'", false, $ctx); if ($v === false) { exit(1); } echo trim($v);' 2>/dev/null || true)"
+if [[ "$WEB_RUNTIME" == 8.3.*'|fpm-fcgi' ]]; then
+  pass "Apache -> FastCGI -> PHP request path works ($WEB_RUNTIME)"
+else
+  fail "Apache/FastCGI request path failed or returned unexpected runtime: $WEB_RUNTIME"
+fi
+
+cleanup
+SMOKE_FILE=""
+trap - EXIT HUP INT TERM
+
+if (( FAIL )); then
+  echo "wp-dev-platform doctor detected compatibility failures." >&2
+  exit 1
+fi
+
+echo "wp-dev-platform DreamHost Shared compatibility doctor passed."
