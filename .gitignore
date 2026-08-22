@@ -1,0 +1,37 @@
+# Secrets / local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# DreamHost raw/private captures
+*shell-fingerprint*.txt
+*db-fingerprint*.txt
+profiles/*/reference/private/
+profiles/*/reference/raw/
+
+# WordPress runtime / uploads / generated content
+wp-content/uploads/
+wp-content/cache/
+wp-content/upgrade/
+wp-content/backup*/
+*.sql
+*.sql.gz
+*.dump
+*.tar
+*.tar.gz
+*.zip
+
+# Local tooling
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# Temporary files
+tmp/
+.cache/
