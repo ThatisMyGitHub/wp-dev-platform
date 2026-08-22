@@ -116,6 +116,16 @@ fi
 WP_RUNTIME="$(wp --allow-root eval 'global $wpdb; echo $wpdb->charset,"|",$wpdb->collate;' 2>/dev/null || true)"
 [[ "$WP_RUNTIME" == 'utf8mb4|utf8mb4_unicode_520_ci' ]] && pass "WordPress DB connection is utf8mb4 / unicode_520" || fail "WordPress DB connection mismatch: $WP_RUNTIME"
 
+# WordPress core/plugin/theme maintenance requires outbound HTTPS. Test through
+# WordPress's own HTTP API so DNS, routing, CA validation and the application
+# transport layer are all exercised together.
+WPORG_STATUS="$(wp --allow-root eval '
+$r = wp_remote_get("https://api.wordpress.org/core/version-check/1.7/", ["timeout" => 15]);
+if (is_wp_error($r)) { echo "ERROR:" . $r->get_error_message(); exit; }
+echo wp_remote_retrieve_response_code($r);
+' 2>/dev/null || true)"
+[[ "$WPORG_STATUS" == '200' ]] && pass "WordPress outbound HTTPS to api.wordpress.org is functional" || fail "WordPress.org HTTPS check failed: $WPORG_STATUS"
+
 # Exercise the actual development web boundary and measure the settings as PHP
 # sees them under FPM/FastCGI, rather than inferring them from CLI behavior.
 SMOKE_FILE="wpdev-runtime-$RANDOM-$$.php"

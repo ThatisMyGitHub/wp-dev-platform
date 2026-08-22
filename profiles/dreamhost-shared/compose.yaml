@@ -107,6 +107,7 @@ services:
       backend:
         aliases:
           - wpdev-php-backend
+      egress: {}
     healthcheck:
       test: ["CMD-SHELL", "php -r '$$s=@fsockopen(\"127.0.0.1\",9000,$$e,$$m,2); if(!$$s){exit(1);} fclose($$s);'"]
       interval: 20s
@@ -157,6 +158,7 @@ services:
       - "wordpress_data:/var/www/html"
     networks:
       - backend
+      - egress
 
   adminer:
     image: "${ADMINER_IMAGE:-adminer:5.5.1}"
@@ -186,3 +188,6 @@ networks:
   backend:
     name: "${WPDEV_PROJECT_SLUG:-wpdev}_backend"
     internal: true
+  egress:
+    name: "${WPDEV_PROJECT_SLUG:-wpdev}_egress"
+    driver: bridge

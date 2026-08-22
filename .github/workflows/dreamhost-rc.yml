@@ -81,6 +81,15 @@ jobs:
           docker compose --env-file .env -f compose.yaml exec -T web getent hosts wpdev-php-backend
           test "$(docker compose --env-file .env -f compose.yaml exec -T web getent hosts wpdev-php-backend | wc -l)" -eq 1
 
+      - name: Verify WordPress outbound HTTPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            curl --fail --silent --show-error --location --max-time 15 \
+            https://api.wordpress.org/core/version-check/1.7/ \
+            -o /dev/null
+
       - name: Install WordPress
         run: |
           docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
