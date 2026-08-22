@@ -22,6 +22,18 @@ MySQL 8.0.41 (`db`)
 
 The split Apache + PHP-FPM layout intentionally reproduces DreamHost's Apache -> FastCGI execution model more closely than the single-container `wordpress:apache` image would.
 
+## Measured baseline vs configurable hosting plan
+
+RC1 defaults reproduce the current Data Inspire production runtime. They are **not a declaration that DreamHost Shared cannot be tuned differently**.
+
+The current plan exposes configuration capabilities including PHP-version selection, general PHP limits, optional extensions, OPcache configuration/information, custom PHP configuration and website directory mapping. See:
+
+`provider-capabilities.md`
+
+That document is part of the provider contract and should be consulted when Data Inspire or a future customer needs a setting beyond the current baseline.
+
+A particularly important hosting constraint is that DreamHost PHP-setting changes can affect all websites assigned to the same SFTP/SSH user. Independent customer sites should therefore use appropriately isolated hosting users when different tuning may be required.
+
 ## Quick start
 
 Prerequisites:
@@ -40,6 +52,24 @@ docker compose --env-file .env -f compose.yaml up -d --build
 ```
 
 The WordPress files are initialized into a persistent named volume using the QNAP-safe tar-copy pattern proven in HCF.
+
+## Optional project-specific PHP tuning
+
+Do not edit `php/zz-dreamhost.ini` merely because one consumer needs different provider-supported settings. Instead use the opt-in override layer:
+
+```bash
+cp php/project-overrides.ini.example php/project-overrides.ini
+# Edit php/project-overrides.ini with values verified for the target DreamHost site/user.
+
+docker compose --env-file .env \
+  -f compose.yaml \
+  -f compose.php-overrides.yaml \
+  up -d --build
+```
+
+`php/project-overrides.ini` is ignored by this reusable repository. A consumer project that requires a persistent non-secret override should document/version that requirement in its own project overlay.
+
+INI overrides cannot install PHP extensions. If a solution requires a DreamHost-supported optional extension such as `gmp` or `tidy`, the development runtime must be extended deliberately and production availability verified before release.
 
 ## First WordPress installation
 
@@ -60,6 +90,8 @@ After WordPress has been installed:
 ```
 
 The doctor checks Compose validity, PHP family/limits, MySQL version/settings, application grants, and WordPress's effective database charset/collation.
+
+If project-specific PHP overrides are active, their expected values must be added to the consumer project's validation rather than changing the generic RC1 doctor's baseline assertions.
 
 ## Development-only Adminer
 
@@ -88,4 +120,4 @@ The database privilege restriction script runs only when the MySQL volume is ini
 
 This Compose stack is not deployed to DreamHost. Production migration remains a controlled transfer of WordPress files/database/configuration to the shared-hosting environment.
 
-See `compatibility.md` and `reference/` for the measured compatibility rationale. Raw production fingerprints are never committed.
+See `compatibility.md`, `provider-capabilities.md`, and `reference/` for the measured compatibility rationale and provider configuration envelope. Raw production fingerprints are never committed.
