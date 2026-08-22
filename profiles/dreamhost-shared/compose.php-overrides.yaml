@@ -1,0 +1,12 @@
+# Optional Compose layer for project-specific PHP settings.
+# Do not include this file in the normal RC1 startup unless a target project
+# has a confirmed DreamHost-supported PHP override requirement.
+
+services:
+  wordpress:
+    volumes:
+      - "./php/project-overrides.ini:/usr/local/etc/php/conf.d/zzz-project-overrides.ini:ro"
+
+  wpcli:
+    volumes:
+      - "./php/project-overrides.ini:/usr/local/etc/php/conf.d/zzz-project-overrides.ini:ro"

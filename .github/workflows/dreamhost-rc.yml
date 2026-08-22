@@ -1,0 +1,237 @@
+name: DreamHost RC validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/dreamhost-rc.yml'
+      - 'profiles/dreamhost-shared/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/dreamhost-rc.yml'
+      - 'profiles/dreamhost-shared/**'
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  WORDPRESS_RUNTIME_IMAGE: ghcr.io/thatismygithub/wp-dev-platform-wordpress:0.1.0
+  HTTPD_RUNTIME_IMAGE: ghcr.io/thatismygithub/wp-dev-platform-httpd:0.1.0
+  MYSQL_RUNTIME_IMAGE: ghcr.io/thatismygithub/wp-dev-platform-mysql:0.1.0
+
+jobs:
+  runtime-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: profiles/dreamhost-shared
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Prepare CI environment
+        shell: bash
+        run: |
+          cp .env.example .env
+          sed -i 's/^WPDEV_PROJECT_SLUG=.*/WPDEV_PROJECT_SLUG=wpdevci/' .env
+          sed -i 's#^WP_URL=.*#WP_URL=http://web#' .env
+          sed -i 's/^WP_DEBUG=.*/WP_DEBUG=false/' .env
+          sed -i 's/^MYSQL_DATABASE=.*/MYSQL_DATABASE=wordpress_ci/' .env
+          sed -i 's/^MYSQL_USER=.*/MYSQL_USER=wordpress_ci/' .env
+          sed -i 's/^MYSQL_PASSWORD=.*/MYSQL_PASSWORD=ci-app-password-7c8e9f/' .env
+          sed -i 's/^MYSQL_ROOT_PASSWORD=.*/MYSQL_ROOT_PASSWORD=ci-root-password-1a2b3c/' .env
+          docker network inspect carida_cloudflare >/dev/null 2>&1 || docker network create carida_cloudflare
+
+          # Reproduce a real shared-network condition from Carida: another stack
+          # may publish the generic alias `wordpress` on carida_cloudflare. The
+          # RC Apache frontend must still resolve its own PHP-FPM backend through
+          # the private backend-only alias, never this decoy.
+          docker run -d \
+            --name wpdev-ci-wordpress-collision \
+            --network carida_cloudflare \
+            --network-alias wordpress \
+            busybox:1.36 sleep 1800
+
+          docker compose version
+          docker version
+
+      - name: Validate deployment and build models
+        run: |
+          docker compose --env-file .env -f compose.yaml config -q
+          docker compose --env-file .env -f compose.yaml -f compose.build.yaml config -q
+
+      - name: Build RC images from source
+        run: docker compose --env-file .env -f compose.yaml -f compose.build.yaml build --pull
+
+      - name: Start runtime from deployment manifest
+        run: |
+          docker compose --env-file .env -f compose.yaml up -d
+          docker compose --env-file .env -f compose.yaml up -d --wait --wait-timeout 180
+          docker compose --env-file .env -f compose.yaml ps
+
+      - name: Verify malformed WordPress htaccess self-healing
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker compose --env-file .env -f compose.yaml exec -T wordpress sh -c 'cat > /var/www/html/.htaccess <<"EOF"
+          # WPDEV-CUSTOM-BEFORE
+          # BEGIN WordPress
+          # The directives between these markers are intentionally empty.
+          # END WordPress
+          # WPDEV-CUSTOM-AFTER
+          EOF'
+
+          docker compose --env-file .env -f compose.yaml run --rm --no-deps -T wordpress-init
+
+          docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            grep -F 'RewriteRule . /index.php [L]' /var/www/html/.htaccess
+          docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            grep -F '# WPDEV-CUSTOM-BEFORE' /var/www/html/.htaccess
+          docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            grep -F '# WPDEV-CUSTOM-AFTER' /var/www/html/.htaccess
+
+      - name: Verify private FastCGI DNS isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env -f compose.yaml exec -T web getent hosts wpdev-php-backend
+          test "$(docker compose --env-file .env -f compose.yaml exec -T web getent hosts wpdev-php-backend | wc -l)" -eq 1
+
+      - name: Verify WordPress outbound HTTPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            curl --fail --silent --show-error --location --max-time 15 \
+            https://api.wordpress.org/core/version-check/1.7/ \
+            -o /dev/null
+
+      - name: Install WordPress
+        run: |
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            core install \
+            --url=http://web \
+            --title='wp-dev-platform CI' \
+            --admin_user=ciadmin \
+            --admin_password='ci-only-password-42!' \
+            --admin_email=ci@example.invalid \
+            --skip-email
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli core version
+
+      - name: Run compatibility doctor
+        run: bash scripts/doctor.sh
+
+      - name: Prove Apache permalinks and uploaded media
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            rewrite structure '/%postname%/'
+
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            post create \
+            --post_type=post \
+            --post_status=publish \
+            --post_title='CI Permalink Fixture' \
+            --post_name='ci-permalink-fixture' \
+            --post_content='WPDEV_PERMALINK_HTTP_OK'
+
+          PERMALINK_STATUS="$(docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            curl -sS -o /dev/null -w '%{http_code}' http://web/ci-permalink-fixture/)"
+          test "$PERMALINK_STATUS" = "200"
+
+          printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=' | base64 -d > /tmp/wpdev-ci.png
+          docker compose --env-file .env -f compose.yaml cp /tmp/wpdev-ci.png wordpress:/var/www/html/wpdev-ci.png
+
+          ATTACHMENT_ID="$(docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            media import /var/www/html/wpdev-ci.png --title='CI media fixture' --porcelain | tr -d '\r')"
+          test -n "$ATTACHMENT_ID"
+
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            option update wpdev_ci_attachment_id "$ATTACHMENT_ID"
+
+          MEDIA_PATH="$(docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            post meta get "$ATTACHMENT_ID" _wp_attached_file | tr -d '\r')"
+          test -n "$MEDIA_PATH"
+
+          MEDIA_STATUS="$(docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            curl -sS -o /dev/null -w '%{http_code}' "http://web/wp-content/uploads/$MEDIA_PATH")"
+          test "$MEDIA_STATUS" = "200"
+
+          docker compose --env-file .env -f compose.yaml exec -T wordpress rm -f /var/www/html/wpdev-ci.png
+
+      - name: Verify restart persistence
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env -f compose.yaml restart db wordpress web
+          docker compose --env-file .env -f compose.yaml up -d --wait --wait-timeout 180
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli core is-installed
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli option get siteurl
+
+          PERMALINK_STATUS="$(docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            curl -sS -o /dev/null -w '%{http_code}' http://web/ci-permalink-fixture/)"
+          test "$PERMALINK_STATUS" = "200"
+
+          ATTACHMENT_ID="$(docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            option get wpdev_ci_attachment_id | tr -d '\r')"
+          test -n "$ATTACHMENT_ID"
+
+          MEDIA_PATH="$(docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli \
+            post meta get "$ATTACHMENT_ID" _wp_attached_file | tr -d '\r')"
+          test -n "$MEDIA_PATH"
+
+          MEDIA_STATUS="$(docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            curl -sS -o /dev/null -w '%{http_code}' "http://web/wp-content/uploads/$MEDIA_PATH")"
+          test "$MEDIA_STATUS" = "200"
+
+      - name: Database export/import dry run
+        shell: bash
+        run: |
+          bash scripts/db-export.sh backups/ci-roundtrip.sql
+          test -s backups/ci-roundtrip.sql
+          CONFIRM_IMPORT=1 bash scripts/db-import.sh backups/ci-roundtrip.sql
+          docker compose --env-file .env -f compose.yaml --profile tools run --rm -T wpcli core is-installed
+
+      - name: Final doctor
+        run: bash scripts/doctor.sh
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish exact validated AMD64 images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker image inspect "$WORDPRESS_RUNTIME_IMAGE" >/dev/null
+          docker image inspect "$HTTPD_RUNTIME_IMAGE" >/dev/null
+          docker image inspect "$MYSQL_RUNTIME_IMAGE" >/dev/null
+          docker push "$WORDPRESS_RUNTIME_IMAGE"
+          docker push "$HTTPD_RUNTIME_IMAGE"
+          docker push "$MYSQL_RUNTIME_IMAGE"
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          docker compose --env-file .env -f compose.yaml ps || true
+          docker compose --env-file .env -f compose.yaml logs --no-color --tail=250 || true
+
+      - name: Tear down
+        if: always()
+        run: |
+          docker compose --env-file .env -f compose.yaml down -v --remove-orphans || true
+          docker rm -f wpdev-ci-wordpress-collision >/dev/null 2>&1 || true
+          docker network rm carida_cloudflare >/dev/null 2>&1 || true

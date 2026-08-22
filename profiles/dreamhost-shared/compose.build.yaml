@@ -1,0 +1,39 @@
+# Source-build overlay for CI and developer workstations.
+#
+# Portainer/QNAP deployments MUST use compose.yaml alone so they pull the
+# validated runtime images rather than compiling native PHP extensions on the
+# NAS. CI deliberately combines this file with compose.yaml to keep every
+# Dockerfile reproducible and continuously tested from source.
+
+services:
+  db:
+    build:
+      context: .
+      dockerfile: mysql/Dockerfile
+      args:
+        MYSQL_BASE_IMAGE: "${MYSQL_BASE_IMAGE:-mysql:8.0.41@sha256:bf577825b52ab281d6281fb281eabbfdc73507eda8f2c2745790251533ef0306}"
+
+  wordpress-init:
+    build:
+      context: .
+      dockerfile: wordpress/Dockerfile
+      args:
+        WORDPRESS_BASE_IMAGE: "${WORDPRESS_BASE_IMAGE:-wordpress:7.0.4-php8.3-fpm@sha256:48fd4f0fee04801b95245c39d6ad915491ef00c943c8c359b1ea552e1647a18e}"
+        WP_CLI_VERSION: "${WP_CLI_VERSION:-2.12.0}"
+        PHP_BUILD_JOBS: "${PHP_BUILD_JOBS:-1}"
+
+  wordpress:
+    build:
+      context: .
+      dockerfile: wordpress/Dockerfile
+      args:
+        WORDPRESS_BASE_IMAGE: "${WORDPRESS_BASE_IMAGE:-wordpress:7.0.4-php8.3-fpm@sha256:48fd4f0fee04801b95245c39d6ad915491ef00c943c8c359b1ea552e1647a18e}"
+        WP_CLI_VERSION: "${WP_CLI_VERSION:-2.12.0}"
+        PHP_BUILD_JOBS: "${PHP_BUILD_JOBS:-1}"
+
+  web:
+    build:
+      context: .
+      dockerfile: apache/Dockerfile
+      args:
+        HTTPD_BASE_IMAGE: "${HTTPD_BASE_IMAGE:-httpd:2.4.68@sha256:2920ed8587277d6aa8ea785e143e970835057123dc7bf1199d102c60c80a73bb}"
