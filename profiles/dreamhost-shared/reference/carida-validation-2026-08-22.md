@@ -50,6 +50,21 @@ Observed `wpdev-rc1` member of external `carida_cloudflare`:
 
 Therefore MySQL and WordPress/PHP remain backend-only, while Apache is the sole frontend participant on the Cloudflare network.
 
+## Startup-log gate — PASS
+
+Sanitized startup logs confirm:
+
+- MySQL 8.0.41 initialized the data directory, created the RC database/application user, executed `/docker-entrypoint-initdb.d/10-restrict-app-user.sh`, completed the temporary initialization server cycle and restarted ready for connections on port 3306;
+- InnoDB initialized successfully;
+- WordPress volume initialization completed and the existing `.htaccess` was preserved;
+- the WordPress/PHP container generated `wp-config.php` from the supplied `WORDPRESS_*` environment contract;
+- PHP-FPM started and reported `ready to handle connections`;
+- Apache 2.4.68 reported `configured -- resuming normal operations`.
+
+Observed MySQL warnings are non-blocking official-image/runtime warnings rather than initialization failures: deprecated `--skip-host-cache` syntax, the temporary `--initialize-insecure` bootstrap warning, self-signed internal CA, pid-file directory warning and the CLI password warning from the initialization helper. None prevented the final server from reaching its healthy/running state.
+
+The CLI-password warning should be considered a security-hygiene improvement opportunity for the initialization helper before or after final release, but it is not an RC1 functional blocker and no password value is emitted in the logs.
+
 ## Next acceptance gate
 
-Inspect sanitized startup logs for MySQL initialization/restricted grants, WordPress volume initialization, PHP-FPM startup and Apache startup. If clean, create the temporary Cloudflare route, complete a fresh WordPress installation, then run the full `wpdev-doctor` and continue permalink/media/restart/redeploy/migration checks.
+Create the temporary Cloudflare route to `http://wpdev-rc1-web:80`, complete a fresh WordPress installation through the HTTPS development hostname, then run the full `wpdev-doctor` and continue permalink/media/restart/redeploy/migration checks.
