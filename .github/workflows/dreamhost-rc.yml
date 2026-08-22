@@ -46,6 +46,17 @@ jobs:
           sed -i 's/^MYSQL_PASSWORD=.*/MYSQL_PASSWORD=ci-app-password-7c8e9f/' .env
           sed -i 's/^MYSQL_ROOT_PASSWORD=.*/MYSQL_ROOT_PASSWORD=ci-root-password-1a2b3c/' .env
           docker network inspect carida_cloudflare >/dev/null 2>&1 || docker network create carida_cloudflare
+
+          # Reproduce a real shared-network condition from Carida: another stack
+          # may publish the generic alias `wordpress` on carida_cloudflare. The
+          # RC Apache frontend must still resolve its own PHP-FPM backend through
+          # the private backend-only alias, never this decoy.
+          docker run -d \
+            --name wpdev-ci-wordpress-collision \
+            --network carida_cloudflare \
+            --network-alias wordpress \
+            busybox:1.36 sleep 1800
+
           docker compose version
           docker version
 
@@ -62,6 +73,13 @@ jobs:
           docker compose --env-file .env -f compose.yaml up -d
           docker compose --env-file .env -f compose.yaml up -d --wait --wait-timeout 180
           docker compose --env-file .env -f compose.yaml ps
+
+      - name: Verify private FastCGI DNS isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env -f compose.yaml exec -T web getent hosts wpdev-php-backend
+          test "$(docker compose --env-file .env -f compose.yaml exec -T web getent hosts wpdev-php-backend | wc -l)" -eq 1
 
       - name: Install WordPress
         run: |
@@ -184,4 +202,5 @@ jobs:
         if: always()
         run: |
           docker compose --env-file .env -f compose.yaml down -v --remove-orphans || true
+          docker rm -f wpdev-ci-wordpress-collision >/dev/null 2>&1 || true
           docker network rm carida_cloudflare >/dev/null 2>&1 || true
