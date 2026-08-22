@@ -53,6 +53,15 @@ Older compatibility binaries are present but are not candidates for the new plat
 - Git: 2.43.0
 - MySQL client: 8.0.46 (Ubuntu package)
 
+## Reference WordPress application
+
+The active Data Inspire WordPress installation has been positively identified and queried through WP-CLI.
+
+- WordPress core: 7.0.4
+- `home` and `siteurl`: HTTPS canonical production URL confirmed
+
+The project-specific document root and URL are intentionally not required by the reusable provider profile.
+
 ## Validation state
 
 Completed:
@@ -64,6 +73,8 @@ Completed:
 - [x] WP-CLI version captured
 - [x] Git version captured
 - [x] MySQL client version captured
+- [x] Active WordPress installation verified
+- [x] WordPress core version captured
 
 Pending:
 
@@ -71,7 +82,7 @@ Pending:
 - [ ] Web/FastCGI PHP runtime confirmation
 - [ ] Database server fingerprint
 - [ ] Database effective grants/restrictions
-- [ ] Optional WordPress core/plugin/theme inventory
+- [ ] Optional plugin/theme inventory
 
 ## Design implication
 
