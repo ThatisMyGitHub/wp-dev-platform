@@ -4,6 +4,10 @@ FROM ${WORDPRESS_BASE_IMAGE}
 ARG WP_CLI_VERSION=2.12.0
 ARG PHP_BUILD_JOBS=1
 
+LABEL org.opencontainers.image.source="https://github.com/ThatisMyGitHub/wp-dev-platform" \
+      org.opencontainers.image.version="0.1.0-rc1" \
+      org.opencontainers.image.description="DreamHost-compatible WordPress/PHP runtime for wp-dev-platform"
+
 # The official WordPress image already provides the core WordPress extension set
 # (including bcmath, exif, gd, intl, mysqli, zip and imagick). DreamHost Shared
 # exposes a broader automatically-enabled PHP web baseline, so add the missing
@@ -14,10 +18,9 @@ ARG PHP_BUILD_JOBS=1
 # Debian it is a MariaDB client and can introduce authentication/plugin behavior
 # that does not match the DreamHost MySQL 8 CLI/runtime.
 #
-# Build concurrency defaults to one job because this image is also built directly
-# on QNAP/Portainer hosts. Native PHP extension compilation can otherwise consume
-# memory proportional to the NAS-reported CPU count. Faster build hosts may
-# explicitly raise PHP_BUILD_JOBS after validating their resource envelope.
+# Source builds default to one compiler job so low-resource hosts remain usable.
+# Production/Portainer deployment does not build this image; CI publishes the
+# exact validated AMD64 image to GHCR for Carida/QNAP consumption.
 RUN set -eux; \
     case "${PHP_BUILD_JOBS}" in \
         ''|*[!0-9]*|0) echo "PHP_BUILD_JOBS must be a positive integer" >&2; exit 64 ;; \

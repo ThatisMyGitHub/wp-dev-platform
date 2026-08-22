@@ -25,7 +25,7 @@ env:
 jobs:
   runtime-validation:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: profiles/dreamhost-shared
@@ -154,6 +154,26 @@ jobs:
       - name: Final doctor
         run: bash scripts/doctor.sh
 
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish exact validated AMD64 images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker image inspect "$WORDPRESS_RUNTIME_IMAGE" >/dev/null
+          docker image inspect "$HTTPD_RUNTIME_IMAGE" >/dev/null
+          docker image inspect "$MYSQL_RUNTIME_IMAGE" >/dev/null
+          docker push "$WORDPRESS_RUNTIME_IMAGE"
+          docker push "$HTTPD_RUNTIME_IMAGE"
+          docker push "$MYSQL_RUNTIME_IMAGE"
+
       - name: Diagnostics on failure
         if: failure()
         run: |
@@ -165,79 +185,3 @@ jobs:
         run: |
           docker compose --env-file .env -f compose.yaml down -v --remove-orphans || true
           docker network rm carida_cloudflare >/dev/null 2>&1 || true
-
-  publish-runtime-images:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
-    needs: runtime-validation
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Publish WordPress/PHP runtime
-        uses: docker/build-push-action@v6
-        with:
-          context: profiles/dreamhost-shared
-          file: profiles/dreamhost-shared/wordpress/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ env.WORDPRESS_RUNTIME_IMAGE }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/ThatisMyGitHub/wp-dev-platform
-            org.opencontainers.image.version=0.1.0-rc1
-            org.opencontainers.image.description=DreamHost-compatible WordPress/PHP runtime for wp-dev-platform
-          build-args: |
-            WORDPRESS_BASE_IMAGE=wordpress:7.0.4-php8.3-fpm@sha256:48fd4f0fee04801b95245c39d6ad915491ef00c943c8c359b1ea552e1647a18e
-            WP_CLI_VERSION=2.12.0
-            PHP_BUILD_JOBS=1
-          cache-from: type=gha,scope=wordpress-runtime
-          cache-to: type=gha,mode=max,scope=wordpress-runtime
-
-      - name: Publish Apache runtime
-        uses: docker/build-push-action@v6
-        with:
-          context: profiles/dreamhost-shared
-          file: profiles/dreamhost-shared/apache/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ env.HTTPD_RUNTIME_IMAGE }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/ThatisMyGitHub/wp-dev-platform
-            org.opencontainers.image.version=0.1.0-rc1
-            org.opencontainers.image.description=Apache FastCGI frontend for wp-dev-platform
-          build-args: |
-            HTTPD_BASE_IMAGE=httpd:2.4.68@sha256:2920ed8587277d6aa8ea785e143e970835057123dc7bf1199d102c60c80a73bb
-          cache-from: type=gha,scope=httpd-runtime
-          cache-to: type=gha,mode=max,scope=httpd-runtime
-
-      - name: Publish MySQL runtime
-        uses: docker/build-push-action@v6
-        with:
-          context: profiles/dreamhost-shared
-          file: profiles/dreamhost-shared/mysql/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ env.MYSQL_RUNTIME_IMAGE }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/ThatisMyGitHub/wp-dev-platform
-            org.opencontainers.image.version=0.1.0-rc1
-            org.opencontainers.image.description=DreamHost-compatible MySQL runtime for wp-dev-platform
-          build-args: |
-            MYSQL_BASE_IMAGE=mysql:8.0.41@sha256:bf577825b52ab281d6281fb281eabbfdc73507eda8f2c2745790251533ef0306
-          cache-from: type=gha,scope=mysql-runtime
-          cache-to: type=gha,mode=max,scope=mysql-runtime
