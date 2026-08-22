@@ -1,6 +1,6 @@
 # Carida / QNAP RC1 validation evidence — 2026-08-22
 
-This file records sanitized acceptance evidence for `wp-dev-platform` `dreamhost-shared` v0.1.0-rc1 on the real Carida/QNAP host. It contains no credentials, private addresses or environment dumps.
+This file records sanitized acceptance evidence for `wp-dev-platform` `dreamhost-shared` v0.1.0-rc1 on the real Carida/QNAP host and the subsequent `v0.1.0` release-artifact verification. It contains no credentials, private addresses or environment dumps.
 
 ## Runtime artifact gate — PASS
 
@@ -9,6 +9,7 @@ All three public GHCR RC images were pulled successfully from the QNAP Docker da
 - `ghcr.io/thatismygithub/wp-dev-platform-wordpress:0.1.0-rc1`
   - original registry digest before outbound-network correction: `sha256:28714327339f7be9d4ba07271c93081b724d3a04fd6006bee748434a0522b66b`
   - corrected RC image registry digest after outbound-network correction: `sha256:ea1ccac9d895ab7e323ff04476114556a1604a3c4b05798daee8aabd387347ba`
+  - final self-healing RC registry digest: `sha256:1305bd62932f30b96bbb3ca216c397ba18a3317ae4fda5d444e68f3f789565c0`
 - `ghcr.io/thatismygithub/wp-dev-platform-httpd:0.1.0-rc1`
   - original registry digest before FastCGI DNS correction: `sha256:c218ae7e785a53f161fb59c4e02cf0db53849ce0f3b0747acc6a6d621032ea99`
   - corrected RC image registry digest: `sha256:46dc8f254c952b359c775b8a026f2d3b7b137e7a6dd1aafb29ad59765c396b9c`
@@ -16,7 +17,18 @@ All three public GHCR RC images were pulled successfully from the QNAP Docker da
   - registry digest: `sha256:ef294eb37bc6932dd864bd323e037d69c3e9f8710710d7b280e9c2aea8ad4a59`
   - observed local image ID during initial artifact validation: `sha256:282feba2ae53ba49cd841c5da868a3ee4721e4ba6ff4d32ae33e3d8c2f5737b6`
 
-The final WordPress RC digest after the `.htaccess` self-healing runtime change is intentionally recorded only after the corresponding GHCR publish/pull verification on Carida.
+## Final v0.1.0 release artifact gate — PASS
+
+After promotion, the immutable `0.1.0` image tags were independently pulled from the real Carida/QNAP Docker daemon. The release digests are:
+
+- `ghcr.io/thatismygithub/wp-dev-platform-wordpress:0.1.0`
+  - `sha256:c09d62b93d4da84f4adf92f2f5004f24de5fcc13c0318594d34a22dca8eec76f`
+- `ghcr.io/thatismygithub/wp-dev-platform-httpd:0.1.0`
+  - `sha256:33998658fc3ff8da98834ced9f90468e3f4d2c1d7b5057550a81cecb17f0bf9c`
+- `ghcr.io/thatismygithub/wp-dev-platform-mysql:0.1.0`
+  - `sha256:423cba3230fccc11ebf1cfecd49808db1f8ee23d5f608c0d11eee0598c1a433e`
+
+This independently confirms successful publication of all three immutable release-image tags.
 
 ## Portainer deployment/startup gate — PASS
 
@@ -167,9 +179,45 @@ A full `wpdev-doctor` was then rerun after the restart and passed every check, i
 
 This closes the ordinary container-restart persistence gate on the real QNAP host.
 
+## Portainer redeploy and real-QNAP self-healing gate — PASS
+
+The malformed `.htaccess` fixture was deliberately restored before a Portainer Pull/redeploy. The initializer reported:
+
+`Repairing incomplete WordPress .htaccess rewrite block while preserving surrounding directives.`
+
+The resulting shared `.htaccess` contained the canonical front-controller rule. After redeploy:
+
+- MySQL, WordPress/PHP and Apache were healthy;
+- the existing WordPress installation persisted;
+- the published test post persisted;
+- media metadata and uploaded file persisted;
+- the friendly permalink passed through Cloudflare;
+- public media delivery passed;
+- the full `wpdev-doctor` passed.
+
+This closes the Portainer redeploy-persistence and live self-healing gate.
+
+## Carida database export/import round-trip gate — PASS
+
+A portable database export was created from the disposable RC database using the shared-host-safe options implemented by the platform.
+
+Observed export evidence:
+
+- non-empty export: PASS;
+- size: 117 KiB;
+- SHA-256: `33f149080c408058e15b67eb7591b06a6e83cceee3684b323bfbeb794cd783e7`;
+- no `GTID_PURGED`: PASS;
+- no `CREATE DATABASE`: PASS.
+
+For the controlled import, Apache and WordPress/PHP were stopped while MySQL remained running and healthy. After the guarded round-trip sequence, WordPress/PHP and Apache returned healthy; the WordPress installation, test post, media metadata, public permalink and public media all passed, followed by a full compatibility-doctor pass.
+
+Transcript nuance: the user-provided final excerpt begins after the direct MySQL import command, so the literal `Database import: PASS` line is not present in the captured excerpt. No import error was reported and every post-import application and compatibility check is green; this nuance is preserved rather than fabricating a missing output line.
+
 ## Latest generic CI — PASS
 
-The final self-healing regression workflow for RC head `886e2bb658f904d63e20585a81fa76c2234ceb14` completed successfully. It passed:
+The final self-healing regression workflow for RC head `886e2bb658f904d63e20585a81fa76c2234ceb14` completed successfully. The final `0.1.0` release-head PR validation for `2addacf0aafeaf42cf11b7a85873094bb4945f49` also passed all functional gates.
+
+Validated checks include:
 
 - deployment/build validation;
 - source image build;
@@ -185,10 +233,8 @@ The final self-healing regression workflow for RC head `886e2bb658f904d63e20585a
 - final doctor;
 - clean teardown.
 
-## Remaining acceptance gates
+## Acceptance decision
 
-1. Confirm the final self-healing WordPress RC image has been published to GHCR and pull that exact image on Carida.
-2. Perform a Portainer `Pull and redeploy` with no volume deletion or environment changes.
-3. Confirm the existing post, permalink, media and full doctor remain valid after redeploy.
-4. Complete the guarded Carida-side database export/import dry run.
-5. If those pass, close RC1 acceptance and prepare promotion to `v0.1.0`.
+**PASS — RC1 acceptance is closed and `v0.1.0` has been promoted to `main`.**
+
+The immutable `0.1.0` GHCR artifacts are independently verified on Carida/QNAP. The remaining repository-level release operation is creation of the Git tag/GitHub Release object `v0.1.0` at the final `main` release commit. After that, downstream consumers such as `datainspire-web` can pin the immutable platform release.
