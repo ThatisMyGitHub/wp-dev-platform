@@ -41,4 +41,6 @@ RUN set -eux; \
 
 COPY php/zz-dreamhost.ini /usr/local/etc/php/conf.d/zz-dreamhost.ini
 COPY wordpress/wpdev-doctor /usr/local/bin/wpdev-doctor
-RUN chmod 0755 /usr/local/bin/wpdev-doctor
+COPY wordpress/default.htaccess /usr/local/share/wpdev/default.htaccess
+RUN chmod 0755 /usr/local/bin/wpdev-doctor \
+    && chmod 0644 /usr/local/share/wpdev/default.htaccess
