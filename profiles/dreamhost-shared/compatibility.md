@@ -2,6 +2,16 @@
 
 This profile emulates the production-relevant behavior measured from the Data Inspire DreamHost Shared Unlimited environment on 2026-08-22.
 
+## Baseline vs provider capability envelope
+
+The RC1 defaults represent the **measured Data Inspire production baseline**, not every setting that DreamHost Shared can support.
+
+DreamHost exposes configurable PHP and website settings that can be used when a project has a justified requirement. Those provider capabilities are documented separately in:
+
+`provider-capabilities.md`
+
+Project-specific tuning must not silently mutate this reusable baseline. It should be implemented as an explicit consumer/deployment override, validated against DreamHost, and then measured in the effective production web runtime.
+
 ## Application runtime target
 
 - WordPress baseline: 7.0.4.
@@ -15,6 +25,27 @@ This profile emulates the production-relevant behavior measured from the Data In
 The development SAPI reports `fpm-fcgi`, not `cgi-fcgi`. This is an intentional compatibility approximation: requests still cross Apache -> FastCGI -> PHP, which preserves the hosting behavior that matters to WordPress while avoiding a custom unsupported CGI image.
 
 Apache is kept on the current 2.4 line rather than deliberately pinning the development proxy to DreamHost's older 2.4.58 patch. WordPress `.htaccess`, rewrite and FastCGI behavior are the compatibility target; the hosting-provider patch level remains recorded in the sanitized fingerprint.
+
+## PHP customization support
+
+The current DreamHost Shared plan provides a wider configuration surface than the RC1 defaults, including PHP-version selection, general PHP limits, optional extensions, OPcache controls/information and custom PHP configuration mechanisms.
+
+The profile includes an **opt-in local PHP override layer** for development emulation:
+
+```bash
+cp php/project-overrides.ini.example php/project-overrides.ini
+# Edit only settings confirmed for the target DreamHost site/user.
+docker compose --env-file .env \
+  -f compose.yaml \
+  -f compose.php-overrides.yaml \
+  up -d --build
+```
+
+This override mechanism is intentionally not active in the default RC1 startup.
+
+Optional PHP extensions are different from INI settings: if a project requires an extension such as `gmp` or `tidy`, the development PHP image must actually install the extension and DreamHost must be confirmed to enable it for the target site/user.
+
+DreamHost PHP settings can be scoped to the SFTP/SSH user. Therefore customer/site isolation at the hosting-user level is an architectural concern when independent PHP tuning may be required.
 
 ## Database target
 
