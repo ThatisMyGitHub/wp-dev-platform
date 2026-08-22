@@ -17,6 +17,7 @@
 - Database/schema distribution captured and normalized.
 - Effective WordPress/PHP database connection captured: `utf8mb4` + `utf8mb4_unicode_520_ci`.
 - Reusable database policy can now target clean InnoDB + `utf8mb4` rather than reproducing the historical mixed schema.
+- The two legacy schema tables have been identified functionally: one Yoast prominent-words table and one unresolved feeds table.
 - No runnable production-emulation stack has been finalized yet.
 
 ## Measured production baseline captured
@@ -42,9 +43,12 @@ CLI values are not yet being treated as authoritative web/FastCGI values.
 
 Before finalizing the first runnable DreamHost profile we still require:
 
-1. identify the two legacy `utf8mb3` tables and assess whether they are active dependencies;
-2. PHP version assigned to the Data Inspire website in the DreamHost panel;
-3. web/FastCGI PHP runtime confirmation where practical.
+1. PHP version assigned to the Data Inspire website in the DreamHost panel;
+2. web/FastCGI PHP runtime confirmation where practical.
+
+Migration follow-up, not a platform blocker:
+
+- determine the provenance/current dependency status of the legacy `feeds` table.
 
 Optional but useful:
 
