@@ -74,6 +74,28 @@ jobs:
           docker compose --env-file .env -f compose.yaml up -d --wait --wait-timeout 180
           docker compose --env-file .env -f compose.yaml ps
 
+      - name: Verify malformed WordPress htaccess self-healing
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker compose --env-file .env -f compose.yaml exec -T wordpress sh -c 'cat > /var/www/html/.htaccess <<"EOF"
+          # WPDEV-CUSTOM-BEFORE
+          # BEGIN WordPress
+          # The directives between these markers are intentionally empty.
+          # END WordPress
+          # WPDEV-CUSTOM-AFTER
+          EOF'
+
+          docker compose --env-file .env -f compose.yaml run --rm --no-deps -T wordpress-init
+
+          docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            grep -F 'RewriteRule . /index.php [L]' /var/www/html/.htaccess
+          docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            grep -F '# WPDEV-CUSTOM-BEFORE' /var/www/html/.htaccess
+          docker compose --env-file .env -f compose.yaml exec -T wordpress \
+            grep -F '# WPDEV-CUSTOM-AFTER' /var/www/html/.htaccess
+
       - name: Verify private FastCGI DNS isolation
         shell: bash
         run: |
