@@ -16,8 +16,9 @@
 - Active Data Inspire WordPress installation verified at WordPress 7.0.4.
 - Database/schema distribution captured and normalized.
 - Effective WordPress/PHP database connection captured: `utf8mb4` + `utf8mb4_unicode_520_ci`.
-- Reusable database policy can now target clean InnoDB + `utf8mb4` rather than reproducing the historical mixed schema.
+- Reusable database policy set to clean InnoDB + `utf8mb4` rather than reproducing the historical mixed schema.
 - The two legacy schema tables have been identified functionally: one Yoast prominent-words table and one unresolved feeds table.
+- DreamHost panel confirms the production website is assigned **PHP 8.3**, while the default SSH/CLI runtime is PHP 8.2.30.
 - No runnable production-emulation stack has been finalized yet.
 
 ## Measured production baseline captured
@@ -26,6 +27,7 @@ The current observation confirms, among other values:
 
 - Ubuntu 24.04.4 LTS;
 - Apache 2.4.58;
+- website PHP family 8.3;
 - default CLI PHP 8.2.30;
 - WP-CLI 2.12.0;
 - Git 2.43.0;
@@ -37,14 +39,13 @@ The current observation confirms, among other values:
 - 46 InnoDB tables and 1 MyISAM table;
 - no current triggers, routines or events.
 
-CLI values are not yet being treated as authoritative web/FastCGI values.
+The panel-side PHP family is now authoritative. One short-lived web request is still required to capture the exact PHP 8.3 patch level, SAPI and effective web-runtime limits before the runtime RC is finalized.
 
 ## Remaining blocking input
 
-Before finalizing the first runnable DreamHost profile we still require:
+Before finalizing the first runnable DreamHost profile we require only:
 
-1. PHP version assigned to the Data Inspire website in the DreamHost panel;
-2. web/FastCGI PHP runtime confirmation where practical.
+1. exact website/FastCGI PHP patch version and selected effective web-runtime limits.
 
 Migration follow-up, not a platform blocker:
 
@@ -58,11 +59,11 @@ Optional but useful:
 
 `wp-dev-platform v0.1.0-rc1`
 
-Planned after fingerprint review:
+Planned immediately after the final web-runtime check:
 
 - provider profile `dreamhost-shared`;
 - Docker Compose baseline;
-- WordPress/PHP runtime;
+- WordPress/Apache + PHP 8.3 web runtime;
 - MySQL 8 runtime with compatibility-aware application grants;
 - InnoDB + `utf8mb4` default database policy;
 - WordPress connection collation aligned with the measured production runtime;
