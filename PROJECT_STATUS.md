@@ -23,6 +23,25 @@ DreamHost discovery is complete. The normalized production compatibility baselin
 
 Raw fingerprints and account-specific identifiers remain outside the public repository.
 
+## Provider capability envelope captured
+
+The DreamHost Shared profile now records not only the current Data Inspire values but also the hosting-plan configuration capabilities available when a future solution needs them.
+
+Documented capabilities include:
+
+- per-site PHP version selection;
+- panel-adjustable PHP limits (`memory_limit`, upload/post sizes, execution/input times and input variables);
+- temporary PHP warnings;
+- optional PHP extensions exposed by DreamHost, including `gmp` and `tidy`;
+- OPcache settings/information and advanced controls where the selected PHP version/plan permits them;
+- custom PHP configuration through DreamHost's PHP configuration mechanism;
+- configurable website document-root/directory mapping;
+- other provider-managed website services such as DNS, SSL/security, logs, file/migration tools and IP options where available.
+
+Important scope rule: DreamHost documents PHP-setting changes as applying to all websites assigned to the same SFTP/SSH user. Future independent customers/sites should therefore use appropriately isolated hosting users when different PHP tuning may be required.
+
+See `profiles/dreamhost-shared/provider-capabilities.md`.
+
 ## RC1 implementation status
 
 The first runnable `dreamhost-shared` profile is now present on `dev` and the repository version is `0.1.0-rc1`.
@@ -33,6 +52,7 @@ Implemented:
 - split Apache -> FastCGI -> WordPress/PHP topology;
 - PHP 8.3 application runtime aligned with the measured DreamHost web family;
 - measured PHP limits and OPcache settings;
+- opt-in project-specific PHP INI override layer without mutating the reusable baseline;
 - MySQL 8.0.41 compatibility runtime;
 - clean InnoDB + `utf8mb4` reusable database defaults;
 - WordPress-oriented `utf8mb4_unicode_520_ci` collation policy;
@@ -49,6 +69,8 @@ Implemented:
 - compatibility `doctor` script;
 - guarded database export/import helpers;
 - explicit compatibility contract documenting intentional approximations.
+
+Optional extensions are not preinstalled merely because DreamHost can enable them. If a consumer requires one, the development runtime image must add it explicitly and production support must be validated.
 
 ## Intentional compatibility approximations
 
