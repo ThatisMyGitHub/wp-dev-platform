@@ -39,34 +39,35 @@ MUTATION_AUTHORIZED=NO
 
 A fresh same-window QNAP snapshot is required whenever current capacity, runtime health, Docker identity, storage, VM capability or platform mutation can affect the decision.
 
-## 3. Execution context — never treat the QNAP as a developer workstation
+## 3. Execution context — governed host support layer
 
-The QNAP host is a control/orchestration/storage plane. The project profile/runtime owns application tooling.
+The QNAP host is primarily a control/orchestration/storage plane with a governed support-tool layer. The project profile/runtime still owns runtime-representative application validation.
 
-Never assume that PHP, Composer, WP-CLI, Node.js, npm/pnpm/yarn, Python packages, database clients, browsers, FFmpeg, GNU utilities or another project runtime/tool exists on the host.
+Never assume that PHP, Composer, WP-CLI, Node.js, npm/pnpm/yarn, Python packages, database clients, browsers, FFmpeg, GNU utilities or another project runtime/tool exists or does not exist solely from the current shell `PATH`.
 
-Before first use of an optional host command, perform one bounded read-only capability probe, normally:
+Before first use of an optional host command:
 
-```sh
-command -v <tool> >/dev/null 2>&1
-```
+1. inspect same-window `host-capabilities.tsv` and `qpkg-inventory.tsv` when available;
+2. otherwise perform one bounded `command -v` probe;
+3. if App Center/QPKG or Entware indicates an installed package outside `PATH`, resolve its package-owned executable path once and record the exact path/version/provenance;
+4. select host or project runtime according to what the validation must prove.
 
-If the tool or required option is absent, do not retry variants blindly. Use the project's existing approved container/tooling environment. If the capability exists neither on the validated host nor in the approved project runtime, stop with:
+If the capability exists neither in the verified host support layer nor in the approved project runtime, stop with:
 
 ```text
 EXECUTION_CAPABILITY_MISSING
 ```
 
-and propose the smallest repository-owned tooling addition through the normal review/authorization path.
-
 Examples:
 
-- PHP syntax/runtime validation belongs in the applicable PHP/WordPress container, not host `php` unless host PHP has been explicitly validated for that task.
-- Node/JavaScript build, lint or test commands belong in an approved Node-capable project/CI runtime, not host `node`, `npm` or `pnpm` by assumption.
-- database utilities belong in the applicable database/project container.
+- PHP syntax/runtime acceptance belongs in the applicable PHP/WordPress container unless host PHP is explicitly part of the compatibility claim.
+- Verified host Node.js may be used for suitable development support such as syntax/lint/build steps when its exact path/version is compatible; project runtime acceptance still belongs in the project's declared Node/tooling runtime when that distinction matters.
+- database utilities belong in the applicable database/project container for DB-runtime acceptance, unless an exact verified host support tool is sufficient for a non-runtime-sensitive operation.
 - shell scripts intended for the NAS must use conservative POSIX/QNAP-compatible constructs and must not assume GNU-only flags or optional commands without a capability check.
 
-Do not install missing project runtimes or utility packages on the NAS as an incidental fix. Host package/runtime installation is a separate QNAP platform change requiring its own governance and authorization.
+Do not repeatedly try aliases, package-manager variants or guessed executable paths.
+
+A bounded host support utility may be installed through Entware/QPKG only under the central QNAP controlled-tooling policy with explicit authorization and a recorded package, purpose, version, install location, executable paths, owner scope, retention and removal plan. Incidental/untracked host installation remains prohibited.
 
 ## 4. Docker authority
 
@@ -78,13 +79,15 @@ Normal project workloads use the Container Station Docker engine:
 
 The QNAP system Docker engine at `/var/run/system-docker.sock` is intentionally distinct. Never collapse, substitute or redirect one engine to the other.
 
-Prefer existing project services with `docker compose exec -T ...` or a documented project-owned disposable validation service. Adding/pulling a new utility image or changing Dockerfile/Compose dependencies is a project environment change, not an automatic workaround.
+Prefer existing project services with `docker compose exec -T ...` or a documented project-owned disposable validation service when runtime-representative validation is required. Adding/pulling a new utility image or changing Dockerfile/Compose dependencies is a project environment change, not an automatic workaround.
 
 ## 5. Evidence and mutation discipline
 
-- PASS requires observed evidence from the correct execution context.
+- PASS requires observed evidence from the execution context appropriate to the claim.
 - A failure caused by running a tool in the wrong context is not evidence that application code is invalid.
+- Failure of `command -v` alone is not proof that an App Center/QPKG package is absent.
 - Do not modify the QNAP merely to satisfy a verifier.
+- Controlled host-support-tool installation is allowed only under the central authorization/retention contract.
 - Do not edit Portainer-managed stack Compose files directly.
 - Keep `MUTATION_AUTHORIZED=NO` until a task-specific explicit mutation gate exists.
 - Use branch + PR for repository changes; do not merge without explicit user authorization.
