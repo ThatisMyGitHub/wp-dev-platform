@@ -36,6 +36,22 @@ That document is part of the provider contract and should be consulted when Data
 
 A particularly important hosting constraint is that DreamHost PHP-setting changes can affect all websites assigned to the same SFTP/SSH user. Independent customer sites should therefore use appropriately isolated hosting users when different tuning may be required.
 
+## PHP runtime identification on DreamHost
+
+DreamHost's provider-configured website PHP, effective web/FastCGI PHP, default shell PHP and WP-CLI PHP are distinct execution contexts. The current host can serve a PHP 8.3 website while plain SSH `php` and plain `wp` use PHP 8.2.
+
+Before interpreting a PHP mismatch during migration or parity checks, read:
+
+`PHP-RUNTIME-IDENTIFICATION.md`
+
+For PHP-8.3-governed remote WP-CLI operations, prefer the DreamHost wrapper's supported selector:
+
+```bash
+WP_CLI_PHP=/usr/local/php83/bin/php wp --path="$ROOT" <command>
+```
+
+Do not pass the DreamHost `wp` shell wrapper directly to the PHP binary.
+
 ## Quick start
 
 Prerequisites:

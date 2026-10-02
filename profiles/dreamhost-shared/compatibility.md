@@ -47,6 +47,20 @@ DreamHost reports `cgi-fcgi`; development reports `fpm-fcgi`. This is intentiona
 
 Production Apache measured 2.4.58. RC1 uses **Apache 2.4.68**, pinned by digest for reproducibility. We deliberately do not preserve an older Apache maintenance patch merely for numeric identity. WordPress `.htaccess`, rewrite, headers and FastCGI behavior are the compatibility targets.
 
+## PHP context identity during validation
+
+The application compatibility target is the effective web/FastCGI PHP family, not the default SSH shell interpreter.
+
+DreamHost currently exposes PHP 8.2 as the shell default while the governed application target is PHP 8.3. Remote WP-CLI checks can therefore produce false requirement failures when invoked as plain `wp`.
+
+For version-sensitive remote validation:
+
+```bash
+WP_CLI_PHP=/usr/local/php83/bin/php wp --path="$ROOT" <command>
+```
+
+Record the interpreter used by WP-CLI and compare like-for-like execution contexts. See `PHP-RUNTIME-IDENTIFICATION.md` for the canonical provider-profile procedure and the wrapper-script trap that must be avoided.
+
 ## Fresh-install `.htaccess` policy
 
 DreamHost/Apache production behavior depends on WordPress rewrite rules in `.htaccess`. The RC1 WordPress initialization therefore seeds the standard root WordPress rewrite file **only when the persistent WordPress volume has no `.htaccess` at all**.

@@ -23,6 +23,23 @@ DreamHost allows the PHP version of a fully hosted site to be selected from the 
 
 A future project may select another PHP version when supported/required, but the corresponding development profile must be updated and validated before deployment. Older/EOL PHP versions may be available through DreamHost Extended Support and must not be selected merely for convenience.
 
+## PHP runtime observation and CLI selection
+
+The PHP family selected for a website in the DreamHost panel is not the same observation as the default SSH shell interpreter.
+
+Current measured behavior shows:
+
+- website PHP family can be configured as PHP 8.3;
+- default shell `php` can remain PHP 8.2;
+- plain DreamHost `wp` can inherit that shell PHP;
+- an explicit WP-CLI interpreter can be selected with `WP_CLI_PHP=/usr/local/php83/bin/php`.
+
+Therefore provider/runtime discovery must record web PHP and CLI/WP-CLI PHP independently. A shell PHP mismatch must not be treated as evidence that the hosted site is using the wrong PHP family.
+
+Canonical operational procedure:
+
+`PHP-RUNTIME-IDENTIFICATION.md`
+
 ## General PHP settings exposed by the panel
 
 The current Shared plan exposes the following PHP controls in **Manage Websites -> Settings -> PHP -> General**:
