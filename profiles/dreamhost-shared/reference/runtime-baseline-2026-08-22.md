@@ -67,6 +67,30 @@ The host exposes CLI binaries from PHP 5.6 through PHP 8.5. Current observed ver
 
 Older compatibility binaries are present but are not candidates for the new platform baseline.
 
+### 2026-10-02 runtime-selection reconfirmation
+
+A later data inspire STAGE/PROD migration inventory reconfirmed the distinction above:
+
+~~~text
+default shell php               = 8.2.30
+/usr/local/php82/bin/php        = 8.2.30
+/usr/local/php83/bin/php        = 8.3.30
+plain WP-CLI PHP                = 8.2.30
+WP_CLI_PHP=php83 WP-CLI PHP     = 8.3.30
+~~~
+
+The DreamHost control panel simultaneously reported both data inspire STAGE and PROD websites assigned to PHP 8.3.
+
+WordPress plugin requirement validation for a component declaring Requires PHP: 8.3 failed under plain WP-CLI because that invocation inherited PHP 8.2.30, then passed under both STAGE and PROD when WP-CLI was invoked with:
+
+~~~bash
+WP_CLI_PHP=/usr/local/php83/bin/php wp ...
+~~~
+
+This confirms that plain shell/WP-CLI PHP output is not sufficient evidence for the site's web PHP assignment.
+
+The provider-specific procedure is documented in `../PHP-RUNTIME-IDENTIFICATION.md`.
+
 ## Tooling
 
 - WP-CLI: 2.12.0
